@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-   // id 'application'
+    id 'application'
 }
 
 group 'de.unikassel.rtr'
@@ -8,7 +8,7 @@ version '1.0-SNAPSHOT'
 
 sourceCompatibility = 1.8
 
-//applicationDefaultJvmArgs = [ "-javaagent:/inspectit-ocelot-agent-0.6.jar"]
+applicationDefaultJvmArgs = [ "-javaagent:/inspectit-ocelot-agent-0.6.jar"]
 
 repositories {
     mavenCentral()
@@ -21,8 +21,6 @@ dependencies {
 
     compile group: 'com.github.downgoon', name: 'MarvinFramework', version: '1.5.5' // Image-processing
     compile group: 'com.github.downgoon', name: 'MarvinPlugins', version: '1.5.5'
-
-    compile fileTree(dir: 'libs', include: ['cgroup.jar']);
 
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }

@@ -1,0 +1,74 @@
+{
+  "inspectit": {
+    "service-name": "Fog Worker Node",
+    "metrics": {
+      "frequency": "1s",
+      "processor": {
+        "enabled": {
+          "count": false,
+          "system.average": false,
+          "system.usage": false,
+          "process.usage": true
+        }
+      },
+      "disk": {
+        "enabled": {
+          "free": false,
+          "total": false
+        }
+      },
+      "memory": {
+        "enabled": {
+          "used": true,
+          "committed": false,
+          "max": false,
+          "buffer.count": false,
+          "buffer.used": false,
+          "buffer.capacity": false
+        }
+      },
+      "threads": {
+        "enabled": {
+          "peak": false,
+          "live": true,
+          "daemon": false,
+          "states": false
+        }
+      },
+      "gc": {
+        "pause": false,
+        "concurrent.phase.time": false,
+        "live.data.size": false,
+        "max.data.size": false,
+        "memory.allocated": false,
+        "memory.promoted": false
+      },
+      "classloader": {
+        "loaded": false,
+        "unloaded": false
+      }
+    },
+    "config": {
+      "file-based": {
+        "watch": false
+      }
+    },
+    "logging": {
+      "console": {
+        "enabled": false
+      },
+      "file": {
+        "enabled": false
+      }
+    },
+    "exporters": {
+      "metrics": {
+        "prometheus": {
+          "enabled": true,
+          "host": "0.0.0.0",
+          "port": 42042
+        }
+      }
+    }
+  }
+}
