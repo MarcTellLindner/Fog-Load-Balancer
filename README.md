@@ -14,4 +14,4 @@ you have to use specify InspectIT Ocelot as a Java-agent and specify its
 JVM-arguments: `-Dinspectit.config.file-based.path="config/" -javaagent:"path/to/inspectit-ocelot-agent.jar"`
 
 ### Running the LoadBalancer
-The [LoadBlancer](src/main/java/de/unikassel/LoadBalancer.java) does not require any configuration.
+The [LoadBalancer](src/main/java/de/unikassel/LoadBalancer.java) does not require any configuration.
