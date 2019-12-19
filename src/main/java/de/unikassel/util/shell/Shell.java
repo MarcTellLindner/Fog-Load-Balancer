@@ -1,4 +1,4 @@
-package de.unikassel.cgroup.shell;
+package de.unikassel.util.shell;
 
 import java.io.BufferedReader;
 import java.io.IOException;

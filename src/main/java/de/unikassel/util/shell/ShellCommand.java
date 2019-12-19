@@ -1,4 +1,4 @@
-package de.unikassel.cgroup.shell;
+package de.unikassel.util.shell;
 
 import java.util.ArrayList;
 import java.util.Arrays;

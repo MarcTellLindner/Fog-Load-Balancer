@@ -1,9 +1,9 @@
 package de.unikassel.cgroup;
 
 import de.unikassel.cgroup.options.Option;
-import de.unikassel.cgroup.shell.Shell;
-import de.unikassel.cgroup.shell.ShellCommand;
-import de.unikassel.cgroup.shell.ShellResult;
+import de.unikassel.util.shell.Shell;
+import de.unikassel.util.shell.ShellCommand;
+import de.unikassel.util.shell.ShellResult;
 import de.unikassel.nativ.jna.ThreadUtil;
 
 import java.io.IOException;
