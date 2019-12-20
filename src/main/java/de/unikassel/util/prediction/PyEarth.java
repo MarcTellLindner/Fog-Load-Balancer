@@ -1,19 +1,18 @@
-package de.unikassel.util;
+package de.unikassel.util.prediction;
 
 import de.unikassel.util.shell.Shell;
 import de.unikassel.util.shell.ShellCommand;
 import de.unikassel.util.shell.ShellResult;
+import org.codehaus.commons.compiler.CompilerFactoryFactory;
+import org.codehaus.commons.compiler.IExpressionEvaluator;
 
-import javax.script.ScriptEngine;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class PyEarth {
-    public static Function<double[], double[]> trainEarthModel(double[][] x, double[][] y) throws IOException {
+    public static Predictor trainEarthModel(double[][] x, double[][] y) throws IOException {
         Shell shell = new Shell();
         shell.addShellCommand(new ShellCommand("python3 python/earth.py", false).withArgs(
                 Arrays.stream(x).map(row ->
@@ -36,33 +35,19 @@ public class PyEarth {
         return createFunction(formula);
     }
 
-    private static Function<double[], double[]> createFunction(String formula) {
-        
-        System.out.println(formula);
-        ArrayList<Function<double[], double[]>> element;
-        for(String part : formula.split("\\+")) {
-            String[] sides = part.split("\\*", 2);
-            double factor = Double.parseDouble(sides[1]);
-
-            switch(sides[0].charAt(0)) {
-                case '1': // Constant value
-
-                    break;
-                case 'x': // Linear value
-                    break;
-                case 'h': // Hinge function
-                    break;
-                default:
-                    throw new IllegalStateException("Formula can't be parsed: " + part);
-            }
-
-
+    private static Predictor createFunction(String formula) throws IOException {
+        try {
+            IExpressionEvaluator ee = CompilerFactoryFactory.getDefaultCompilerFactory().newExpressionEvaluator();
+            ee.setNoPermissions();
+            String javaFormula =  String.format("new double[]{%s}",            // Wrap in array-creation
+                    formula.replaceAll("x(\\d+)", "x[$1]")   //variables to array-indexes;
+            );
+            return (Predictor) ee.createFastEvaluator(
+                   javaFormula,
+                    Predictor.class, new String[]{"x"}
+            );
+        } catch (Exception e) {
+            throw new IOException("Exception while reading trained model", e);
         }
-
-        return null;
-    }
-
-    public static void main(String... args) throws IOException {
-        trainEarthModel(new double[][]{{1.0, 1.0}, {2.0, 3.0}}, new double[][]{{2.0}, {5.0}});
     }
 }
