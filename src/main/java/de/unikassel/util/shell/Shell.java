@@ -28,7 +28,7 @@ public class Shell {
                 .start();
 
 
-        int exitVal = 0;
+        int exitVal;
         try {
             exitVal = process.waitFor();
         } catch (InterruptedException e) {

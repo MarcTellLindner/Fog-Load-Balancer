@@ -1,4 +1,4 @@
-package de.unikassel.nativ.jna;
+package de.unikassel.util.nativ.jna;
 
 import com.sun.jna.Library;
 import com.sun.jna.Native;

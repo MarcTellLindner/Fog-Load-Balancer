@@ -1,10 +1,9 @@
-package de.unikassel.util.prediction;
+package de.unikassel.prediction;
 
 import de.unikassel.util.shell.Shell;
 import de.unikassel.util.shell.ShellCommand;
 import de.unikassel.util.shell.ShellResult;
-import org.codehaus.commons.compiler.CompilerFactoryFactory;
-import org.codehaus.commons.compiler.IExpressionEvaluator;
+import org.codehaus.janino.ExpressionEvaluator;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,7 +36,7 @@ public class PyEarth {
 
     private static Predictor createFunction(String formula) throws IOException {
         try {
-            IExpressionEvaluator ee = CompilerFactoryFactory.getDefaultCompilerFactory().newExpressionEvaluator();
+            ExpressionEvaluator ee = new ExpressionEvaluator();
             ee.setNoPermissions();
             String javaFormula =  String.format("new double[]{%s}",            // Wrap in array-creation
                     formula.replaceAll("x(\\d+)", "x[$1]")   //variables to array-indexes;

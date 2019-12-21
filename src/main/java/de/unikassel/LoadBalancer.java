@@ -1,82 +1,95 @@
 package de.unikassel;
 
-import com.googlecode.mobilityrpc.MobilityRPC;
-import com.googlecode.mobilityrpc.controller.MobilityController;
-import com.googlecode.mobilityrpc.network.ConnectionId;
-import com.googlecode.mobilityrpc.session.MobilitySession;
-import de.unikassel.cgroup.CGroup;
-import de.unikassel.cgroup.Controller;
-import de.unikassel.nativ.jna.ThreadUtil;
-import de.unikassel.util.callables.BalancingCallable;
-import de.unikassel.util.callables.DestroyRunnable;
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.SerializerFactory;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.serializers.ClosureSerializer;
+import com.esotericsoftware.kryo.serializers.FieldSerializer;
+import de.unikassel.util.RemoteCallable;
+import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.io.Serializable;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.concurrent.Callable;
 
 public class LoadBalancer {
 
-    private final MobilityController controller;
-    private final HashMap<ConnectionId, MobilitySession> sessions;
+    private final LinkedHashSet<InetSocketAddress> workerNodeAddresses;
+    private final Kryo kryo;
 
     public LoadBalancer() {
-        controller = MobilityRPC.newController();
-        sessions = new HashMap<>();
+        workerNodeAddresses = new LinkedHashSet<>();
+        kryo = setupKryoInstance();
     }
 
-    public <T> T execute(ConnectionId connectionId, Callable<T> callable, CGroup cGroup, String sudoPW) {
-        if (!sessions.containsKey(connectionId)) {
-            sessions.put(connectionId, controller.newSession());
+    public void addWorkerNodeAddresses(InetSocketAddress... addresses) {
+        this.addWorkerNodeAddresses(Arrays.asList(addresses));
+    }
+
+    public void addWorkerNodeAddresses(Collection<InetSocketAddress> addresses) {
+        this.workerNodeAddresses.addAll(addresses);
+    }
+
+    public <T> T executeOnWorker(RemoteCallable<T> callable) throws IOException {
+        InetSocketAddress chosenAddress = workerNodeAddresses.iterator().next(); // Placeholder for actual algorithm
+        return executeOnSpecifiedWorker(chosenAddress, callable);
+    }
+
+    private <T, K extends Callable<T> & Serializable>
+    T executeOnSpecifiedWorker(InetSocketAddress chosenAddress, K callable)
+            throws IOException {
+        try (
+                Socket worker = new Socket(chosenAddress.getAddress(), chosenAddress.getPort());
+                Output out = new Output(worker.getOutputStream());
+                Input in = new Input(worker.getInputStream())
+        ) {
+            kryo.writeClassAndObject(out, callable);
+            out.flush();
+
+            @SuppressWarnings("unchecked")
+            T result = (T) kryo.readClassAndObject(in);
+            return result;
+
+         }catch (IOException e) {
+            throw new IOException("Exception while executing on worker", e);
         }
-        return sessions.get(connectionId).execute(connectionId, new BalancingCallable<T>(callable, cGroup, sudoPW));
     }
 
-    public void destroy() {
-        for (Map.Entry<ConnectionId, MobilitySession> entry : sessions.entrySet()) {
-            ConnectionId connectionId = entry.getKey();
-            MobilitySession mobilitySession = entry.getValue();
+    public static Kryo setupKryoInstance() {
+        Kryo kryo = new Kryo();
+        kryo.setRegistrationRequired(false);
+        kryo.setDefaultSerializer(new SerializerFactory.FieldSerializerFactory() {
+            @Override
+            public FieldSerializer<?> newSerializer(Kryo kryo, Class type) {
+                FieldSerializer<?> fieldSerializer = new FieldSerializer<>(kryo, type);
+                fieldSerializer.getFieldSerializerConfig().setIgnoreSyntheticFields(false);
+                return fieldSerializer;
+            }
+        });
+        kryo.setInstantiatorStrategy(new StdInstantiatorStrategy());
+//        kryo.register(Object[].class, 123);
+//        kryo.register(Class.class, 234);
+//        kryo.register(java.lang.invoke.SerializedLambda.class, 345);
+        kryo.register(ClosureSerializer.Closure.class, new ClosureSerializer(), 456);
+        return kryo;
+    }
 
-            mobilitySession.execute(connectionId, new DestroyRunnable());
+    public static void main(String... args) throws Exception {
+        LoadBalancer loadBalancer = new LoadBalancer();
+        loadBalancer.addWorkerNodeAddresses(new InetSocketAddress(InetAddress.getLocalHost(), WorkerNode.DEFAULT_RPC_PORT));
+
+        try {
+            String rs = loadBalancer.executeOnWorker((RemoteCallable<String>) () -> "Test");
+            System.out.println(rs);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        sessions.clear();
-        controller.destroy();
-    }
-
-    public static void main(String... args) throws IOException {
-
-        LoadBalancer balancer
-                = new LoadBalancer();
-
-        Long tid0 = balancer.execute(
-                new ConnectionId("localhost", WorkerNode.DEFAULT_RPC_PORT),
-                new Callable<Long>() {
-                    @Override
-                    public Long call() {
-
-                        return ThreadUtil.getThreadId();
-                    }
-                },
-                new CGroup("A", Controller.CPU, Controller.CPUSET),
-                System.getenv("password")
-        );
-        System.out.print(tid0 + " vs ");
-
-                Long tid1 = balancer.execute(
-                new ConnectionId("localhost", WorkerNode.DEFAULT_RPC_PORT),
-                new Callable<Long>() {
-                    @Override
-                    public Long call() {
-
-                        return ThreadUtil.getThreadId();
-                    }
-                },
-                new CGroup("B", Controller.CPU, Controller.CPUSET),
-                System.getenv("password")
-        );
-
-        System.out.println(tid1);
-
-        balancer.destroy();
     }
 }

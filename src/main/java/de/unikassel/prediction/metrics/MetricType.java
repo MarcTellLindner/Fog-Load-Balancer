@@ -1,4 +1,4 @@
-package de.unikassel.util.metrics;
+package de.unikassel.prediction.metrics;
 
 public enum MetricType {
     OC_WORKER_SPANS_DROPPED,

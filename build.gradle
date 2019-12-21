@@ -17,22 +17,13 @@ repositories {
 dependencies {
     implementation 'net.java.dev.jna:jna:5.5.0' // Call to get TID
 
-    compile group: 'com.googlecode.mobilityrpc', name: 'mobility-rpc', version: '1.2.1' // Calls to other node
+    compile group: 'com.esotericsoftware', name:'kryo', version: '5.0.0-RC4'
 
-    compile 'com.esotericsoftware:kryo:5.0.0-RC4'
 
     compile group: 'org.codehaus.janino', name: 'janino', version: '3.1.0'
 
     compile group: 'com.github.downgoon', name: 'MarvinFramework', version: '1.5.5' // Image-processing
     compile group: 'com.github.downgoon', name: 'MarvinPlugins', version: '1.5.5'
-
-    //compile group: 'com.esotericsoftware', name: 'kryo', version: strictly('5.0.0-RC4')
-
-//    implementation('com.esotericsoftware:kryo'){
-//        version {
-//            strictly '4.0.0'
-//        }
-//    }
 
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }

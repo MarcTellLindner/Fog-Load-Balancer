@@ -1,4 +1,4 @@
-package de.unikassel.util.metrics;
+package de.unikassel.prediction.metrics;
 
 import java.util.Collections;
 import java.util.Map;
