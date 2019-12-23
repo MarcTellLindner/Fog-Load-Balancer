@@ -6,7 +6,9 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.ClosureSerializer;
 import com.esotericsoftware.kryo.serializers.FieldSerializer;
-import de.unikassel.util.RemoteCallable;
+import de.unikassel.util.serialization.ModifiedClosureSerializer;
+import de.unikassel.util.serialization.RemoteCallable;
+import de.unikassel.util.serialization.Serializer;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.io.IOException;
@@ -26,7 +28,7 @@ public class LoadBalancer {
 
     public LoadBalancer() {
         workerNodeAddresses = new LinkedHashSet<>();
-        kryo = setupKryoInstance();
+        kryo = Serializer.setupKryoInstance();
     }
 
     public void addWorkerNodeAddresses(InetSocketAddress... addresses) {
@@ -62,32 +64,21 @@ public class LoadBalancer {
         }
     }
 
-    public static Kryo setupKryoInstance() {
-        Kryo kryo = new Kryo();
-        kryo.setRegistrationRequired(false);
-        kryo.setDefaultSerializer(new SerializerFactory.FieldSerializerFactory() {
-            @Override
-            public FieldSerializer<?> newSerializer(Kryo kryo, Class type) {
-                FieldSerializer<?> fieldSerializer = new FieldSerializer<>(kryo, type);
-                fieldSerializer.getFieldSerializerConfig().setIgnoreSyntheticFields(false);
-                return fieldSerializer;
-            }
-        });
-        kryo.setInstantiatorStrategy(new StdInstantiatorStrategy());
-//        kryo.register(Object[].class, 123);
-//        kryo.register(Class.class, 234);
-//        kryo.register(java.lang.invoke.SerializedLambda.class, 345);
-        kryo.register(ClosureSerializer.Closure.class, new ClosureSerializer(), 456);
-        return kryo;
-    }
-
     public static void main(String... args) throws Exception {
         LoadBalancer loadBalancer = new LoadBalancer();
         loadBalancer.addWorkerNodeAddresses(new InetSocketAddress(InetAddress.getLocalHost(), WorkerNode.DEFAULT_RPC_PORT));
 
         try {
-            String rs = loadBalancer.executeOnWorker((RemoteCallable<String>) () -> "Test");
-            System.out.println(rs);
+            String testString = "SUCCESS";
+            String anonymous = loadBalancer.executeOnWorker(new RemoteCallable<String>() {
+                @Override
+                public String call() throws Exception {
+                    return testString;
+                }
+            });
+            String lambda = loadBalancer.executeOnWorker((RemoteCallable<String>) () -> testString);
+
+            System.out.printf("Anonymous:\t%s \nLambda:\t\t%s", anonymous, lambda);
         } catch (Exception e) {
             e.printStackTrace();
         }

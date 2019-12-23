@@ -3,6 +3,7 @@ package de.unikassel;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import de.unikassel.util.serialization.Serializer;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,7 +22,7 @@ public class WorkerNode implements AutoCloseable {
 
     public WorkerNode(int port) throws IOException {
         this.serverSocket = new ServerSocket(port);
-        kryo = LoadBalancer.setupKryoInstance();
+        kryo = Serializer.setupKryoInstance();
     }
 
     public void start() throws IOException {
