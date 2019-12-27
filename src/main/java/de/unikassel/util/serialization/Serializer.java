@@ -11,15 +11,10 @@ public class Serializer {
     public static Kryo setupKryoInstance() {
         Kryo kryo = new Kryo();
         kryo.setRegistrationRequired(false);
-        kryo.setDefaultSerializer(new SerializerFactory.FieldSerializerFactory() {
-            @Override
-            public FieldSerializer<?> newSerializer(Kryo kryo, Class type) {
-                FieldSerializer<?> fieldSerializer = new FieldSerializer<>(kryo, type);
-                fieldSerializer.getFieldSerializerConfig().setIgnoreSyntheticFields(false);
-                fieldSerializer.updateFields();
-                return fieldSerializer;
-            }
-        });
+        SerializerFactory.FieldSerializerFactory fieldSerializerFactory
+                = new SerializerFactory.FieldSerializerFactory();
+        fieldSerializerFactory.getConfig().setIgnoreSyntheticFields(false);
+        kryo.setDefaultSerializer(fieldSerializerFactory);
         kryo.setInstantiatorStrategy(new StdInstantiatorStrategy());
         kryo.register(java.lang.invoke.SerializedLambda.class);
         kryo.register(ClosureSerializer.Closure.class, new ModifiedClosureSerializer());

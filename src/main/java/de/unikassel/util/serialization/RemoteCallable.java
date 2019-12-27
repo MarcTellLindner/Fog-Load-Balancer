@@ -5,7 +5,7 @@ import java.util.concurrent.Callable;
 
 /**
  * This interface should be used the same way a regular {@link Callable} would be used.
- *
+ * <p>
  * The fact that this one implements Serializable is made necessary by {@link com.esotericsoftware.kryo.Kryo}.
  * IMPORTANT: The implementations of this interface don't need to actually be serializable in the Java-way (so it does
  * not matter, whether all fields are serializable etc.).
@@ -17,4 +17,8 @@ public interface RemoteCallable<T> extends Callable<T>, Serializable {
 
     @Override
     T call() throws Exception;
+
+    public static <T> RemoteCallable<T> wrap(Callable<T> callable) {
+        return callable::call;
+    }
 }

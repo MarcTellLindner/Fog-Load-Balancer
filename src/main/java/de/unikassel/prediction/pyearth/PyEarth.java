@@ -1,4 +1,4 @@
-package de.unikassel.prediction;
+package de.unikassel.prediction.pyearth;
 
 import de.unikassel.util.shell.Shell;
 import de.unikassel.util.shell.ShellCommand;
@@ -11,6 +11,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class PyEarth {
+
+    private PyEarth() {
+    }
+
     public static Predictor trainEarthModel(double[][] x, double[][] y) throws IOException {
         Shell shell = new Shell();
         shell.addShellCommand(new ShellCommand("python3 python/earth.py", false).withArgs(
@@ -38,11 +42,11 @@ public class PyEarth {
         try {
             ExpressionEvaluator ee = new ExpressionEvaluator();
             ee.setNoPermissions();
-            String javaFormula =  String.format("new double[]{%s}",            // Wrap in array-creation
+            String javaFormula = String.format("new double[]{%s}",            // Wrap in array-creation
                     formula.replaceAll("x(\\d+)", "x[$1]")   //variables to array-indexes;
             );
             return (Predictor) ee.createFastEvaluator(
-                   javaFormula,
+                    javaFormula,
                     Predictor.class, new String[]{"x"}
             );
         } catch (Exception e) {

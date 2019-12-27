@@ -48,8 +48,8 @@ public class ModifiedClosureSerializer extends ClosureSerializer {
         }
         try {
             kryo.writeClass(output, Class.forName(serializedLambda.getCapturingClass().replace('/', '.')));
-        } catch (ClassNotFoundException ex) {
-            throw new KryoException("Error writing closure.", ex);
+        } catch (ClassNotFoundException e) {
+            throw new KryoException("Error writing closure.", e);
         }
         output.writeString(serializedLambda.getFunctionalInterfaceClass());
         output.writeString(serializedLambda.getFunctionalInterfaceMethodName());

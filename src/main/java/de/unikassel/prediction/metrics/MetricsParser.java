@@ -1,14 +1,10 @@
 package de.unikassel.prediction.metrics;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
+import java.util.*;
 
 public class MetricsParser {
 
-    public HashMap<MetricType, HashSet<MetricData>> parse(String text) {
-        String[] lines = text.split("\n");
+    public HashMap<MetricType, HashSet<MetricData>> parse(String[] lines) {
 
         HashMap<MetricType, HashSet<MetricData>> dataMap = new HashMap<>();
 
@@ -41,5 +37,9 @@ public class MetricsParser {
         }
 
         return dataMap;
+    }
+
+    public Optional<MetricData> getMax(MetricType type, List<HashMap<MetricType, HashSet<MetricData>>> data) {
+        return data.stream().flatMap(map -> map.get(type).stream()).max(Comparator.comparingDouble(a -> a.value));
     }
 }
