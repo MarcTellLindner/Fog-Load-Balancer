@@ -34,19 +34,24 @@ public class PyEarth {
         if (result.exitVal != 0) {
             throw new IOException("Exception while training model: " + String.join("\n", result.err));
         }
-        String formula = result.out.get(0);
+        String formula = readFormula(result.out.get(0));
         return createFunction(formula);
+    }
+
+    private static String readFormula(String result) {
+        return String.format("new double[]{%s}",               // Wrap in array-creation
+                result.replaceAll("\\[(.*)]", "$1")     // remove wrapping '[' and ']'
+                        .replaceAll("x(\\d+)", "x[$1]") // variables to array-indexes;
+        );
     }
 
     private static Predictor createFunction(String formula) throws IOException {
         try {
             ExpressionEvaluator ee = new ExpressionEvaluator();
+            ee.setDefaultImports("static java.lang.Math.*"); // Allow access to all functions in java.lang.Math
             ee.setNoPermissions();
-            String javaFormula = String.format("new double[]{%s}",            // Wrap in array-creation
-                    formula.replaceAll("x(\\d+)", "x[$1]")   //variables to array-indexes;
-            );
             return (Predictor) ee.createFastEvaluator(
-                    javaFormula,
+                    formula,
                     Predictor.class, new String[]{"x"}
             );
         } catch (Exception e) {
