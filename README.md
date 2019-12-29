@@ -15,3 +15,6 @@ JVM-arguments: `-Dinspectit.config.file-based.path="config/" -javaagent:"path/to
 
 ### Running the LoadBalancer
 The [LoadBalancer](src/main/java/de/unikassel/LoadBalancer.java) does not require any configuration.
+
+## Documentation
+The documentation can be found [here](https://marctelllindner.github.io/Fog-Load-Balancer/index.html).

@@ -16,7 +16,7 @@ public class Shell {
     private final List<ShellCommand> shellCommands = new ArrayList<>();
 
     /**
-     * Add a mew command to this shell.
+     * Add a new command to this shell.
      *
      * @param shellCommand The command to add.
      * @return The shell-instance this method was called on.
