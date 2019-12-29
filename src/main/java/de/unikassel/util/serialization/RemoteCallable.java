@@ -18,7 +18,4 @@ public interface RemoteCallable<T> extends Callable<T>, Serializable {
     @Override
     T call() throws Exception;
 
-    public static <T> RemoteCallable<T> wrap(Callable<T> callable) {
-        return callable::call;
-    }
 }

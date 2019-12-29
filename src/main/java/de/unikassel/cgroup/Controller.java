@@ -1,5 +1,8 @@
 package de.unikassel.cgroup;
 
+/**
+ * Controllers usable with cgroup.
+ */
 public enum Controller {
 
     BLKIO,

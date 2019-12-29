@@ -3,11 +3,21 @@ package de.unikassel.util.serialization;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.SerializerFactory;
 import com.esotericsoftware.kryo.serializers.ClosureSerializer;
-import com.esotericsoftware.kryo.serializers.FieldSerializer;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
+/**
+ * Class for setting up a new {@link Kryo}-instance.
+ */
 public class Serializer {
 
+    private Serializer() {
+    }
+
+    /**
+     * Setup a new {@link Kryo}-instance, that is already configured.
+     *
+     * @return The new {@link Kryo}.
+     */
     public static Kryo setupKryoInstance() {
         Kryo kryo = new Kryo();
         kryo.setRegistrationRequired(false);

@@ -10,11 +10,22 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Train Predictor using PyEarth.
+ */
 public class PyEarth {
 
     private PyEarth() {
     }
 
+    /**
+     * Train a new {@link Predictor}.
+     *
+     * @param x Value of X for training.
+     * @param y Value of y for training.
+     * @return Trained {@link Predictor}.
+     * @throws IOException If a problems occurs while executing py-earth.
+     */
     public static Predictor trainEarthModel(double[][] x, double[][] y) throws IOException {
         Shell shell = new Shell();
         shell.addShellCommand(new ShellCommand("python3 python/earth.py", false).withArgs(

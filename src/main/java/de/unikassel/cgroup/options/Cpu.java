@@ -2,6 +2,9 @@ package de.unikassel.cgroup.options;
 
 import de.unikassel.cgroup.Controller;
 
+/**
+ * Options of the cpu-{@link Controller}.
+ */
 public enum Cpu implements Option {
     CFS_PERIOD_US,
     CFS_QUOTA_US,

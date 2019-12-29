@@ -17,6 +17,9 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+/**
+ * Class for training a model to predict required resources of tasks.
+ */
 public class Trainer {
     private final RemoteCallable<?>[] trainingCalls;
     private final double[][] trainingValues;
@@ -107,6 +110,15 @@ public class Trainer {
         return this;
     }
 
+    /**
+     * Train {@link Predictor}s based on measured values.
+     *
+     * <p>The method {@link Trainer#measure(String, int, int, MetricType...)}
+     * has to be called before calling this method.</p>
+     *
+     * @return The trainer this method was called on.
+     * @throws IOException If problems occur during training.
+     */
     public Trainer train() throws IOException {
 
         double[][] values = relevantTrainingValues.toArray(new double[0][]);
@@ -123,10 +135,20 @@ public class Trainer {
         return this;
     }
 
+    /**
+     * Get the inputToScorePredictor, if the {@link Trainer#train()}-method has already been called. Null otherwise.
+     *
+     * @return The trained inputToScorePredictor or null.
+     */
     public Predictor getInputToScorePredictor() {
         return inputToScorePredictor;
     }
 
+    /**
+     * Get the scoreToResourcePredictor, if the {@link Trainer#train()}-method has already been called. Null otherwise.
+     *
+     * @return The trained scoreToResourcePredictor or null.
+     */
     public Predictor getScoreToResourcePredictor() {
         return scoreToResourcePredictor;
     }

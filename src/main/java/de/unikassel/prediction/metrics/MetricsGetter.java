@@ -9,14 +9,27 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.*;
 
+/**
+ * Class for requesting monitored metrics-data form a {@link de.unikassel.WorkerNode}.
+ */
 public class MetricsGetter {
     private final URL url;
 
     private final ArrayList<HashMap<MetricType, HashSet<MetricData>>> data;
     private final Thread updateThread;
 
-    public MetricsGetter(InetSocketAddress workerNode, long frequency) throws MalformedURLException {
-        this.url = new URL("http", workerNode.getHostString(), workerNode.getPort(), "/");
+    /**
+     * Create new metricsGetter, connected to the specified address.
+     *
+     * @param workerNode The address of the {@link de.unikassel.WorkerNode} to connect to-
+     * @param frequency The frequency to request data with in seconds.
+     */
+    public MetricsGetter(InetSocketAddress workerNode, long frequency)  {
+        try {
+            this.url = new URL("http", workerNode.getHostString(), workerNode.getPort(), "/");
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e); // Should not occur, since http will always be a known protocol
+        }
         this.data = new ArrayList<>();
 
         this.updateThread = new Thread(() -> {
@@ -39,10 +52,18 @@ public class MetricsGetter {
         });
     }
 
+    /**
+     * Start requesting the metrics.
+     */
     public void start() {
         updateThread.start();
     }
 
+    /**
+     * Stop requesting the metrics.
+     *
+     * @return The collected data.
+     */
     public List<HashMap<MetricType, HashSet<MetricData>>> stop() {
         updateThread.interrupt();
         try {

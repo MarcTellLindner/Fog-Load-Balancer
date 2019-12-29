@@ -2,6 +2,9 @@ package de.unikassel.cgroup.options;
 
 import de.unikassel.cgroup.Controller;
 
+/**
+ * Options of the blkio-{@link Controller}.
+ */
 public enum Blkio implements Option {
     RESET_STATS,
     TIME,

@@ -1,5 +1,8 @@
 package de.unikassel.cgroup;
 
+/**
+ * Commands usable with cgroups.
+ */
 public enum Command {
     CGCREATE,
     CGDELETE,

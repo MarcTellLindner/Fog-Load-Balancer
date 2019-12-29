@@ -112,3 +112,6 @@ Temporary Items
 
 # Exclude logs
 logDir/*
+
+# Include docs
+!docs/**

@@ -10,6 +10,9 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Class for creating a cgroup.
+ */
 public class CGroup {
     public final String name;
     private final Map<Controller, Map<Option, String>> values;
@@ -18,9 +21,10 @@ public class CGroup {
         this(name, Arrays.asList(controllers));
     }
 
-    /**Create a new cgroup. that supports the specified controllers
+    /**
+     * Create a new cgroup. that supports the specified controllers
      *
-     * @param name Name of this cgroup
+     * @param name        Name of this cgroup
      * @param controllers supported controllers
      */
     public CGroup(String name, Collection<Controller> controllers) {
@@ -32,31 +36,43 @@ public class CGroup {
     }
 
     /**
-     * @param option 
-     * @param value
-     * @return
+     * Add a new {@link Option} to this cgroup or override an existing one.
+     *
+     * @param option The option.
+     * @param value  The value of the option.
+     * @return The {@link CGroup} this method was called on.
      */
     public CGroup withOption(Option option, Object value) {
         this.values.get(option.getController()).put(option, "" + value);
         return this;
     }
 
+
+    /**
+     * Create the cgroup with all {@link Controller}s used.
+     *
+     * @param sudoPW The sudo-password to allow the creation of the cgroup.
+     * @return The result of the call for creating the cgroup.
+     * @throws IOException In case of exceptions when executing cgroup create.
+     */
     public ShellResult create(String sudoPW) throws IOException {
         return this.create(sudoPW, values.keySet());
     }
 
     /**
-     * Varargs-version of {@link CGroup#create(String, Collection)}
+     * Varargs-version of {@link CGroup#create(String, Collection)}.
      */
     public ShellResult create(String sudoPW, Controller... controllers) throws IOException {
         return this.create(sudoPW, Arrays.asList(controllers));
     }
 
     /**
-     * @param sudoPW
-     * @param controllers
-     * @return
-     * @throws IOException
+     * Create the cgroup.
+     *
+     * @param sudoPW      The sudo-password to allow the creation of the cgroup.
+     * @param controllers The controllers to use for the cgroup.
+     * @return The result of the call to create the cgroup.
+     * @throws IOException In case of exceptions when executing cgroup create.
      */
     public ShellResult create(String sudoPW, Collection<Controller> controllers) throws IOException {
         Shell shell = new Shell().addSudoRightCommand(sudoPW)
@@ -79,14 +95,33 @@ public class CGroup {
         return shell.execute();
     }
 
+    /**
+     * Classify the current thread to this cgroup using all of its controllers.
+     *
+     * @param sudoPW The sudo-password to allow usage of cgroup classify.
+     * @return The result of the call to classify the thread.
+     * @throws IOException In case of exceptions when executing cgroup classify.
+     */
     public ShellResult classify(String sudoPW) throws IOException {
         return this.classify(sudoPW, values.keySet());
     }
 
+    /**
+     * Varargs-version of {@link CGroup#classify(String, Collection)}.
+     */
     public ShellResult classify(String sudoPW, Controller... controllers) throws IOException {
         return this.classify(sudoPW, Arrays.asList(controllers));
     }
 
+
+    /**
+     * Classify the current thread to this cgroup.
+     *
+     * @param sudoPW The sudo-password to allow usage of cgroup classify.
+     * @param controllers The controllers of the cgroup to use.
+     * @return The result of the call to classify the thread.
+     * @throws IOException In case of exceptions when executing cgroup classify.
+     */
     public ShellResult classify(String sudoPW, Collection<Controller> controllers) throws IOException {
         Shell shell = new Shell().addSudoRightCommand(sudoPW)
                 .addShellCommand(
@@ -96,15 +131,33 @@ public class CGroup {
         return shell.execute();
     }
 
+    /**
+     * Delete the cgroup with all of its controllers.
+     *
+     * @param sudoPW The sudo-password to allow the deletion of the cgroup.
+     * @return The result of the call to delete the cgroup.
+     * @throws IOException In case of exceptions when executing cgroup delete.
+     */
     public ShellResult delete(String sudoPW) throws IOException {
         return this.delete(sudoPW, this.values.keySet());
     }
 
+    /**
+     * Varargs-version of {@link CGroup#delete(String, Collection)}.
+     */
     public ShellResult delete(String sudoPW, Controller... controllers) throws IOException {
         return this.delete(sudoPW, Arrays.asList(controllers));
     }
 
-    private ShellResult delete(String sudoPW, Collection<Controller> controllers) throws IOException {
+    /**
+     * Delete the cgroup with all of its controllers.
+     *
+     * @param sudoPW The sudo-password to allow the deletion of the cgroup.
+     * @param controllers The controllers of the cgroup to delete.
+     * @return The result of the call to delete the cgroup.
+     * @throws IOException In case of exceptions when executing cgroup delete.
+     */
+    public ShellResult delete(String sudoPW, Collection<Controller> controllers) throws IOException {
         Shell shell = new Shell().addSudoRightCommand(sudoPW)
                 .addShellCommand(
                         new ShellCommand(Command.CGDELETE, true)

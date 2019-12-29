@@ -2,6 +2,9 @@ package de.unikassel.cgroup.options;
 
 import de.unikassel.cgroup.Controller;
 
+/**
+ * Options of the cpuset-{@link Controller}.
+ */
 public enum CpuSet implements Option {
     CPUS,
     MEMS,

@@ -2,8 +2,17 @@ package de.unikassel.prediction.metrics;
 
 import java.util.*;
 
+/**
+ * Class for creating {@link MetricData}-objects from Strings.
+ */
 public class MetricsParser {
 
+    /**
+     * Read the metrics in the provided text.
+     *
+     * @param lines The text containing information about the metrics.
+     * @return The information represented as a {@link MetricData}-objects.
+     */
     public HashMap<MetricType, HashSet<MetricData>> parse(String[] lines) {
 
         HashMap<MetricType, HashSet<MetricData>> dataMap = new HashMap<>();
@@ -39,6 +48,13 @@ public class MetricsParser {
         return dataMap;
     }
 
+    /**
+     * Get the maximum value of the specified {@link MetricType} in the given structure.
+     *
+     * @param type The {@link MetricType} to fin the maximum value of.
+     * @param data The {@link MetricData}-objects to search in.
+     * @return An {@link Optional} containing the maximum value, if present.
+     */
     public Optional<MetricData> getMax(MetricType type, List<HashMap<MetricType, HashSet<MetricData>>> data) {
         return data.stream().flatMap(map -> map.get(type).stream()).max(Comparator.comparingDouble(a -> a.value));
     }

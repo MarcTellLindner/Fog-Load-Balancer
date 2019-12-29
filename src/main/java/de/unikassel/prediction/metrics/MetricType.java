@@ -1,5 +1,8 @@
 package de.unikassel.prediction.metrics;
 
+/**
+ * The different types of metrics, that can be measured.
+ */
 public enum MetricType {
     OC_WORKER_SPANS_DROPPED,
     OC_WORKER_SPANS_PUSHED,

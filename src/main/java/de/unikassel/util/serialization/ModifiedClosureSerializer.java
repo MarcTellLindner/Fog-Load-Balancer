@@ -9,11 +9,17 @@ import java.lang.invoke.SerializedLambda;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
+/**
+ * Fixed version of {@link ClosureSerializer}.
+ */
 public class ModifiedClosureSerializer extends ClosureSerializer {
 
 
     private final Method toSerializedLambda;
 
+    /**
+     * Create a new {@link ModifiedClosureSerializer}.
+     */
     public ModifiedClosureSerializer() {
         try {
             toSerializedLambda = this.getClass().getSuperclass()

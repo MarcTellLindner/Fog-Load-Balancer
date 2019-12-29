@@ -12,6 +12,9 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.Callable;
 
+/**
+ * A node to execute tasks provided by a {@link LoadBalancer} over the network.
+ */
 public class WorkerNode implements AutoCloseable {
 
     public static final int DEFAULT_MONITORING_PORT = 42042;
@@ -20,11 +23,22 @@ public class WorkerNode implements AutoCloseable {
     private final ServerSocket serverSocket;
     private final Kryo kryo;
 
+    /**
+     * Create a new node to accept tasks on the specified port.
+     *
+     * @param port The port to bind to.
+     * @throws IOException In case the port is already in use.
+     */
     public WorkerNode(int port) throws IOException {
         this.serverSocket = new ServerSocket(port);
         kryo = Serializer.setupKryoInstance();
     }
 
+    /**
+     * Start listening for tasks to execute.
+     *
+     * @throws IOException In case of problems with the connection.
+     */
     public void start() throws IOException {
         for (Socket socket = serverSocket.accept(); socket != null; socket = serverSocket.accept()) {
             InputStream inputStream = socket.getInputStream();
@@ -49,6 +63,11 @@ public class WorkerNode implements AutoCloseable {
         }
     }
 
+    /**
+     * Stop listening for tasks.
+     *
+     * @throws IOException In case of problems while closing the socket.
+     */
     public void stop() throws IOException {
         this.serverSocket.close();
     }
