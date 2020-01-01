@@ -21,7 +21,7 @@
         "enabled": {
           "used": true,
           "committed": false,
-          "max": false,
+          "max": true,
           "buffer.count": false,
           "buffer.used": false,
           "buffer.capacity": false
@@ -36,17 +36,24 @@
         }
       },
       "gc": {
-        "pause": false,
-        "concurrent.phase.time": false,
-        "live.data.size": false,
-        "max.data.size": false,
-        "memory.allocated": false,
-        "memory.promoted": false
+        "enabled": {
+          "pause": false,
+          "concurrent.phase.time": false,
+          "live.data.size": false,
+          "max.data.size": false,
+          "memory.allocated": false,
+          "memory.promoted": false
+        }
       },
       "classloader": {
-        "loaded": false,
-        "unloaded": false
+        "enabled": {
+          "loaded": false,
+          "unloaded": false
+        }
       }
+    },
+    "self-monitoring": {
+      "enabled": false
     },
     "config": {
       "file-based": {

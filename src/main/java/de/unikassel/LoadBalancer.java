@@ -3,6 +3,10 @@ package de.unikassel;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import de.unikassel.prediction.pyearth.Predictor;
+import de.unikassel.schedule.Scheduler;
+import de.unikassel.schedule.SimpleScheduler;
+import de.unikassel.schedule.data.TaskPrediction;
 import de.unikassel.util.serialization.RemoteCallable;
 import de.unikassel.util.serialization.Serializer;
 
@@ -13,21 +17,51 @@ import java.net.Socket;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Distributes load between multiple {@link WorkerNode}-instances it is connected to.
  */
-public class LoadBalancer {
+public class LoadBalancer implements AutoCloseable {
+
+    private final Scheduler scheduler;
+    private final Predictor inputToScorePredictor;
+    private final Predictor scoreToResourcesPredictor;
 
     private final LinkedHashSet<InetSocketAddress> workerNodeAddresses;
+
     private final Kryo kryo;
+
+    private final ScheduledExecutorService executorService;
+
+
+    /**
+     * Create a new {@link LoadBalancer} without predictors.
+     */
+    public LoadBalancer() {
+        this(new SimpleScheduler(), x -> new double[1], x -> new double[1]);
+    }
 
     /**
      * Create a new {@link LoadBalancer}.
+     *
+     * @param scheduler                 {@link Scheduler} used for load-balancing.
+     * @param inputToScorePredictor     {@link Predictor} from input to scalar score.
+     * @param scoreToResourcesPredictor {@link Predictor} from scalar score to resources.
      */
-    public LoadBalancer() {
-        workerNodeAddresses = new LinkedHashSet<>();
-        kryo = Serializer.setupKryoInstance();
+    public LoadBalancer(Scheduler scheduler, Predictor inputToScorePredictor, Predictor scoreToResourcesPredictor) {
+        this.scheduler = scheduler;
+        this.inputToScorePredictor = inputToScorePredictor;
+        this.scoreToResourcesPredictor = scoreToResourcesPredictor;
+
+        this.workerNodeAddresses = new LinkedHashSet<>();
+
+        this.kryo = Serializer.setupKryoInstance();
+
+        this.executorService = Executors.newScheduledThreadPool(20);
     }
 
     /**
@@ -50,13 +84,31 @@ public class LoadBalancer {
      * Execute the given task on one of the known {@link WorkerNode}-instances.
      *
      * @param callable The task to be executed remotely.
-     * @param <T> The type of the returned value.
-     * @return The result computed on a {@link WorkerNode}.
-     * @throws IOException In case of problems with the communication.
+     * @param input    The values to use for the prediction of time and resources.
+     * @param <T>      The type of the returned value.
+     * @return A Future of the execution on the chosen {@link WorkerNode}.
      */
-    public <T> T executeOnWorker(RemoteCallable<T> callable) throws IOException {
-        InetSocketAddress chosenAddress = workerNodeAddresses.iterator().next(); // Placeholder for actual algorithm
-        return executeOnSpecifiedWorker(chosenAddress, callable);
+    public <T> Future<T> executeOnWorker(RemoteCallable<T> callable, double... input) {
+        TaskPrediction<T> taskPrediction = scheduleTasks(callable, input);
+        return this.executorService.schedule(() -> {
+                    scheduler.started(taskPrediction);
+                    try {
+                        return executeOnSpecifiedWorker(taskPrediction.worker, taskPrediction.task);
+                    } finally {
+                        scheduler.finished(taskPrediction);
+                    }
+                },
+                (long) (taskPrediction.time - System.currentTimeMillis()), TimeUnit.MILLISECONDS);
+    }
+
+    private <T> TaskPrediction<T> scheduleTasks(RemoteCallable<T> callable, double[] input) {
+        double[] score = this.inputToScorePredictor.predict(input);
+        double[] timeAndResources = this.scoreToResourcesPredictor.predict(score);
+
+        double timePrediction = timeAndResources[0];
+        double[] resourcePrediction = Arrays.copyOfRange(timeAndResources, 1, timeAndResources.length);
+
+        return this.scheduler.schedule(callable, timePrediction, resourcePrediction, this.workerNodeAddresses);
     }
 
     private <T> T executeOnSpecifiedWorker(InetSocketAddress chosenAddress, RemoteCallable<T> callable)
@@ -78,22 +130,26 @@ public class LoadBalancer {
         }
     }
 
-    public static void main(String... args) throws Exception {
+    @Override
+    public void close() {
+        this.executorService.shutdown();
+    }
 
-        LoadBalancer loadBalancer = new LoadBalancer();
-        loadBalancer.addWorkerNodeAddresses(new InetSocketAddress(InetAddress.getLocalHost(), WorkerNode.DEFAULT_RPC_PORT));
+    public static void main(String... args) {
 
-        try {
+        try(LoadBalancer loadBalancer = new LoadBalancer()) {
+            loadBalancer.addWorkerNodeAddresses(
+                    new InetSocketAddress(InetAddress.getLocalHost(), WorkerNode.DEFAULT_RPC_PORT));
             String testString = "SUCCESS";
             String anonymous = loadBalancer.executeOnWorker(new RemoteCallable<String>() {
                 @Override
                 public String call() {
                     return testString;
                 }
-            });
-            String lambda = loadBalancer.executeOnWorker(() -> testString);
+            }).get();
+            String lambda = loadBalancer.executeOnWorker(() -> testString).get();
 
-            System.out.printf("Anonymous:\t%s \nLambda:\t\t%s", anonymous, lambda);
+            System.out.printf("Anonymous:\t%s %nLambda:\t\t%s", anonymous, lambda);
         } catch (Exception e) {
             e.printStackTrace();
         }

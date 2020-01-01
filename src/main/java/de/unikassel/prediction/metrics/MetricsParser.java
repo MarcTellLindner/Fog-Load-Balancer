@@ -53,9 +53,20 @@ public class MetricsParser {
      *
      * @param type The {@link MetricType} to fin the maximum value of.
      * @param data The {@link MetricData}-objects to search in.
+     * @param sum Add multiple values, if present in the same map, treat as individual values otherwise.
      * @return An {@link Optional} containing the maximum value, if present.
      */
-    public Optional<MetricData> getMax(MetricType type, List<HashMap<MetricType, HashSet<MetricData>>> data) {
-        return data.stream().flatMap(map -> map.get(type).stream()).max(Comparator.comparingDouble(a -> a.value));
+    public Optional<MetricData> getMax(MetricType type,
+                                       List<HashMap<MetricType, HashSet<MetricData>>> data, boolean sum) {
+        if(sum) {
+            OptionalDouble max
+                    = data.stream().mapToDouble(map -> map.get(type).stream().mapToDouble(md -> md.value).sum()).max();
+            if (!max.isPresent()) {
+                return Optional.empty();
+            }
+            return Optional.of(new MetricData(type, Collections.singletonMap("max", "summed"), max.getAsDouble()));
+        } else {
+            return data.stream().flatMap(map -> map.get(type).stream()).max(Comparator.comparingDouble(a -> a.value));
+        }
     }
 }

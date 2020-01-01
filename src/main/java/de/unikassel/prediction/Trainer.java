@@ -13,6 +13,7 @@ import de.unikassel.util.serialization.RemoteCallable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -86,16 +87,16 @@ public class Trainer {
                 metricsGetter.start();
 
                 long startTime = System.nanoTime(); // Network time included at the moment
-                loadBalancer.executeOnWorker(remoteCallable);
+                loadBalancer.executeOnWorker(remoteCallable).get();
                 rnt = System.nanoTime() - startTime;
 
                 List<HashMap<MetricType, HashSet<MetricData>>> allValues = metricsGetter.stop();
                 MetricsParser parser = new MetricsParser();
                 for (MetricType type : types) {
-                    data.put(type, parser.getMax(type, allValues).orElseThrow(IOException::new).value);
+                    data.put(type, parser.getMax(type, allValues, true).orElseThrow(IOException::new).value);
                 }
 
-            } catch (IOException e) {
+            } catch (IOException | InterruptedException | ExecutionException e) {
                 e.printStackTrace();
                 continue;
             }
