@@ -1,7 +1,6 @@
 package de.unikassel.prediction;
 
 import de.unikassel.LoadBalancer;
-import de.unikassel.WorkerNode;
 import de.unikassel.prediction.metrics.MetricData;
 import de.unikassel.prediction.metrics.MetricType;
 import de.unikassel.prediction.metrics.MetricsGetter;
@@ -15,7 +14,6 @@ import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 /**
@@ -30,8 +28,8 @@ public class Trainer {
     private final LinkedHashMap<MetricType, ArrayList<Double>> metrics;
     private final ArrayList<double[]> relevantTrainingValues;
 
-    private Predictor inputToScorePredictor;
-    private Predictor scoreToResourcePredictor;
+    private Predictor inputToTaskSizePredictor;
+    private Predictor taskSizeToResourcePredictor;
 
     public Trainer(RemoteCallable<?>[] trainingCalls, double[][] trainingValues) {
         this.trainingCalls = trainingCalls;
@@ -130,48 +128,27 @@ public class Trainer {
                                 .mapToDouble(list -> list.get(i)).toArray()
                 ).toArray(double[][]::new);
 
-        this.inputToScorePredictor = PyEarth.trainEarthModel(values, scores);
-        this.scoreToResourcePredictor = PyEarth.trainEarthModel(scores, resources);
+        this.inputToTaskSizePredictor = PyEarth.trainEarthModel(values, scores);
+        this.taskSizeToResourcePredictor = PyEarth.trainEarthModel(scores, resources);
 
         return this;
     }
 
     /**
-     * Get the inputToScorePredictor, if the {@link Trainer#train()}-method has already been called. Null otherwise.
+     * Get the inputToTaskSizePredictor, if the {@link Trainer#train()}-method has already been called. Null otherwise.
      *
-     * @return The trained inputToScorePredictor or null.
+     * @return The trained inputToTaskSizePredictor or null.
      */
-    public Predictor getInputToScorePredictor() {
-        return inputToScorePredictor;
+    public Predictor getInputToTaskSizePredictor() {
+        return inputToTaskSizePredictor;
     }
 
     /**
-     * Get the scoreToResourcePredictor, if the {@link Trainer#train()}-method has already been called. Null otherwise.
+     * Get the taskSizeToResourcePredictor, if the {@link Trainer#train()}-method has already been called. Null otherwise.
      *
-     * @return The trained scoreToResourcePredictor or null.
+     * @return The trained taskSizeToResourcePredictor or null.
      */
-    public Predictor getScoreToResourcePredictor() {
-        return scoreToResourcePredictor;
-    }
-
-    public static void main(String[] args) throws IOException {
-
-        RemoteCallable<?>[] callables = LongStream.range(0L, 500L).map(l -> l * 1_000L)
-                .mapToObj(l -> (RemoteCallable<Long>) () -> {
-                    long sum = 0L;
-                    for (long i = 0L; i < l; ++i) {
-                        sum += i;
-                    }
-                    return sum;
-                }).toArray(RemoteCallable[]::new);
-
-        double[][] trainingValues = LongStream.range(0L, 500L)
-                .mapToObj(l -> new double[]{l}).toArray(double[][]::new);
-
-
-        Trainer trainer = new Trainer(callables, trainingValues)
-                .measure("localhost", WorkerNode.DEFAULT_RPC_PORT, WorkerNode.DEFAULT_MONITORING_PORT,
-                        MetricType.PROCESS_CPU_USAGE, MetricType.JVM_MEMORY_USED)
-                .train();
+    public Predictor getTaskSizeToResourcePredictor() {
+        return taskSizeToResourcePredictor;
     }
 }

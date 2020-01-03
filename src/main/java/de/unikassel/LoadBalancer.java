@@ -87,9 +87,13 @@ public class LoadBalancer implements AutoCloseable {
      * @param input    The values to use for the prediction of time and resources.
      * @param <T>      The type of the returned value.
      * @return A Future of the execution on the chosen {@link WorkerNode}.
+     * @throws IOException If the callable could not be scheduled by the scheduler.
      */
-    public <T> Future<T> executeOnWorker(RemoteCallable<T> callable, double... input) {
-        TaskPrediction<T> taskPrediction = scheduleTasks(callable, input);
+    public <T> Future<T> executeOnWorker(RemoteCallable<T> callable, double... input) throws IOException {
+        TaskPrediction<T> taskPrediction = scheduleTask(callable, input);
+        if(taskPrediction == null) {
+            throw new IOException("Could not schedule task!");
+        }
         return this.executorService.schedule(() -> {
                     scheduler.started(taskPrediction);
                     try {
@@ -101,7 +105,7 @@ public class LoadBalancer implements AutoCloseable {
                 (long) (taskPrediction.time - System.currentTimeMillis()), TimeUnit.MILLISECONDS);
     }
 
-    private <T> TaskPrediction<T> scheduleTasks(RemoteCallable<T> callable, double[] input) {
+    private <T> TaskPrediction<T> scheduleTask(RemoteCallable<T> callable, double[] input) {
         double[] score = this.inputToScorePredictor.predict(input);
         double[] timeAndResources = this.scoreToResourcesPredictor.predict(score);
 

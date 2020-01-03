@@ -11,6 +11,6 @@ public class SimpleScheduler implements Scheduler {
     @Override
     public <T> TaskPrediction<T> schedule(RemoteCallable<T> task, double timePrediction, double[] resourcePrediction,
                                    Set<InetSocketAddress> workers) {
-        return new TaskPrediction<>(task, System.currentTimeMillis(), workers.iterator().next(), resourcePrediction);
+        return new TaskPrediction<>(task, System.currentTimeMillis(), timePrediction, workers.iterator().next(), resourcePrediction);
     }
 }
