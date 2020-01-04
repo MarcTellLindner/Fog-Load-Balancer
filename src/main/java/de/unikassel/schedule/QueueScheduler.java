@@ -87,7 +87,7 @@ public class QueueScheduler implements Scheduler {
                 // All changes following current, starting with current itself
                 WorkerResources next = resources[j];
 
-                if ( next.workerAddress.equals(current.workerAddress) // Is this our worker?
+                if (next.workerAddress.equals(current.workerAddress) // Is this our worker?
                         && !lessEqual(resourcePrediction, next.freeResources)) {
                     break; // Some other task will take the required resources -> no match
                 }
@@ -124,10 +124,12 @@ public class QueueScheduler implements Scheduler {
         // If task started already, skip this step
         if (!started) {
             // When the task starts, it takes the required resources
-            map.put(task.time, new AbstractMap.SimpleImmutableEntry<>(task.worker, negative(task.resources)));
+            map.put(Math.max(task.time, System.currentTimeMillis()),
+                    new AbstractMap.SimpleImmutableEntry<>(task.worker, negative(task.resources)));
         }
         // When it finishes, the resources become available again
-        map.put(task.time + task.duration, new AbstractMap.SimpleImmutableEntry<>(task.worker, task.resources));
+        map.put(Math.max(task.time + task.duration, System.currentTimeMillis()),
+                new AbstractMap.SimpleImmutableEntry<>(task.worker, task.resources));
         return map;
     }
 
