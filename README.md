@@ -7,14 +7,27 @@ A load-balancer for fog-related usecases
 
 ## Running
 ### Running the worker
-When running the [WokerNode](src/main/java/de/unikassel/WorkerNode.java)
-you have to use specify InspectIT Ocelot as a Java-agent and specify its
+When running the [WokerNodeTest](src/test/java/de/unikassel/WorkerNodeTest.java)
+You have to specify the location of the InspectIt-jar and of its  
 [configuration](config/WorkerNodeConfig.json).
 
-JVM-arguments: `-Dinspectit.config.file-based.path="config/" -javaagent:"path/to/inspectit-ocelot-agent.jar"`
+Environment-variables: 
+
+| Name    | Value            |    
+|---------|------------------| 
+|inspectit|_location of jar_ |
+|config   |_config-directory_|
+
 
 ### Running the LoadBalancer
-The [LoadBalancer](src/main/java/de/unikassel/LoadBalancer.java) does not require any configuration.
+The [LoadBalancerTest](src/test/java/de/unikassel/LoadBalancerTest.java) requires
+a running WorkerNodeTest and the password of the WorkerNode.
+
+Environment-variables: 
+
+| Name    | Value            |    
+|---------|------------------| 
+|password |_the password_    |
 
 ## Documentation
 The documentation can be found [here](https://marctelllindner.github.io/Fog-Load-Balancer/index.html).

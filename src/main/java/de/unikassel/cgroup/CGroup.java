@@ -29,9 +29,8 @@ public class CGroup {
      */
     public CGroup(String name, Collection<Controller> controllers) {
         this.name = name;
-        Map<Controller, Map<Option, String>> values = new HashMap<>();
+        this.values = new HashMap<>();
         controllers.forEach(c -> values.put(c, new HashMap<>()));
-        this.values = Collections.unmodifiableMap(values);
 
     }
 

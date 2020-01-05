@@ -48,14 +48,14 @@ public class Trainer {
      * @param host           The address of the worker node.
      * @param rpcPort        The port to send the calls to.
      * @param monitoringPort The port to monitor the worker node.
+     * @param password       The password of the worker node.
      * @param types          The additional metrics to measure.
      * @return The trainer this method was called on.
      */
-    private Trainer measure(String host, int rpcPort, int monitoringPort, MetricType... types) {
+    private Trainer measure(String host, int rpcPort, int monitoringPort, String password, MetricType... types) {
 
         LoadBalancer loadBalancer = new LoadBalancer();
-        loadBalancer.addWorkerNodeAddresses(new InetSocketAddress(host, rpcPort));
-        loadBalancer.addWorkerNodeAddresses(new InetSocketAddress(host, rpcPort));
+        loadBalancer.addWorkerNodeAddress(new InetSocketAddress(host, rpcPort), password);
 
         for (MetricType type : types) {
             metrics.put(type, new ArrayList<>());
@@ -112,7 +112,7 @@ public class Trainer {
     /**
      * Train {@link Predictor}s based on measured values.
      *
-     * <p>The method {@link Trainer#measure(String, int, int, MetricType...)}
+     * <p>The method {@link Trainer#measure(String, int, int, String, MetricType...)}
      * has to be called before calling this method.</p>
      *
      * @return The trainer this method was called on.

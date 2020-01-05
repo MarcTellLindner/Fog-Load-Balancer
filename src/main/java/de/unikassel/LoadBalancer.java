@@ -3,6 +3,11 @@ package de.unikassel;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import de.unikassel.cgroup.CGroup;
+import de.unikassel.cgroup.CGroupBuilder;
+import de.unikassel.cgroup.Controller;
+import de.unikassel.cgroup.options.Cpu;
+import de.unikassel.cgroup.options.Memory;
 import de.unikassel.prediction.pyearth.Predictor;
 import de.unikassel.schedule.Scheduler;
 import de.unikassel.schedule.SimpleScheduler;
@@ -14,9 +19,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.LinkedHashSet;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -28,10 +31,11 @@ import java.util.concurrent.TimeUnit;
 public class LoadBalancer implements AutoCloseable {
 
     private final Scheduler scheduler;
-    private final Predictor inputToScorePredictor;
-    private final Predictor scoreToResourcesPredictor;
+    private final Predictor inputToTaskSizePredictor;
+    private final Predictor taskSizeToResourcesPredictor;
+    private final CGroupBuilder cGroupBuilder;
 
-    private final LinkedHashSet<InetSocketAddress> workerNodeAddresses;
+    private final LinkedHashMap<InetSocketAddress, String> workerNodeAddresses;
 
     private final Kryo kryo;
 
@@ -42,22 +46,25 @@ public class LoadBalancer implements AutoCloseable {
      * Create a new {@link LoadBalancer} without predictors.
      */
     public LoadBalancer() {
-        this(new SimpleScheduler(), x -> new double[1], x -> new double[1]);
+        this(new SimpleScheduler(), x -> new double[1], x -> new double[1], x -> null);
     }
 
     /**
      * Create a new {@link LoadBalancer}.
      *
-     * @param scheduler                 {@link Scheduler} used for load-balancing.
-     * @param inputToScorePredictor     {@link Predictor} from input to scalar score.
-     * @param scoreToResourcesPredictor {@link Predictor} from scalar score to resources.
+     * @param scheduler                    {@link Scheduler} used for load-balancing.
+     * @param inputToTaskSizePredictor     {@link Predictor} from input to scalar score.
+     * @param taskSizeToResourcesPredictor {@link Predictor} from scalar score to resources.
+     * @param cGroupBuilder                {@link CGroupBuilder} to generate {@link CGroup} for executed task.
      */
-    public LoadBalancer(Scheduler scheduler, Predictor inputToScorePredictor, Predictor scoreToResourcesPredictor) {
+    public LoadBalancer(Scheduler scheduler, Predictor inputToTaskSizePredictor, Predictor taskSizeToResourcesPredictor,
+                        CGroupBuilder cGroupBuilder) {
         this.scheduler = scheduler;
-        this.inputToScorePredictor = inputToScorePredictor;
-        this.scoreToResourcesPredictor = scoreToResourcesPredictor;
+        this.inputToTaskSizePredictor = inputToTaskSizePredictor;
+        this.taskSizeToResourcesPredictor = taskSizeToResourcesPredictor;
+        this.cGroupBuilder = cGroupBuilder;
 
-        this.workerNodeAddresses = new LinkedHashSet<>();
+        this.workerNodeAddresses = new LinkedHashMap<>();
 
         this.kryo = Serializer.setupKryoInstance();
 
@@ -65,19 +72,22 @@ public class LoadBalancer implements AutoCloseable {
     }
 
     /**
-     * Varargs-version of {@link LoadBalancer#addWorkerNodeAddresses(Collection)}.
+     * Add one new {@link WorkerNode}-instance  and its password.
+     *
+     * @param address  The new {@link WorkerNode}s address and port.
+     * @param password The new {@link WorkerNode}s password.
      */
-    public void addWorkerNodeAddresses(InetSocketAddress... addresses) {
-        this.addWorkerNodeAddresses(Arrays.asList(addresses));
+    public void addWorkerNodeAddress(InetSocketAddress address, String password) {
+        this.workerNodeAddresses.put(address, password);
     }
 
     /**
-     * Add one ore more new {@link WorkerNode}-instances to be used.
+     * Add one or more new {@link WorkerNode}-instances  and their passwords.
      *
-     * @param addresses The new {@link WorkerNode}s addresses and ports.
+     * @param addresses The new {@link WorkerNode}s addresses, ports as keys and passwords as values.
      */
-    public void addWorkerNodeAddresses(Collection<InetSocketAddress> addresses) {
-        this.workerNodeAddresses.addAll(addresses);
+    public void addWorkerNodeAddresses(Map<InetSocketAddress, String> addresses) {
+        this.workerNodeAddresses.putAll(addresses);
     }
 
     /**
@@ -91,13 +101,14 @@ public class LoadBalancer implements AutoCloseable {
      */
     public <T> Future<T> executeOnWorker(RemoteCallable<T> callable, double... input) throws IOException {
         TaskPrediction<T> taskPrediction = scheduleTask(callable, input);
-        if(taskPrediction == null) {
+        if (taskPrediction == null) {
             throw new IOException("Could not schedule task!");
         }
         return this.executorService.schedule(() -> {
                     scheduler.started(taskPrediction);
                     try {
-                        return executeOnSpecifiedWorker(taskPrediction.worker, taskPrediction.task);
+                        return executeOnSpecifiedWorker(taskPrediction.worker, taskPrediction.task,
+                                cGroupBuilder.buildCGroup());
                     } finally {
                         scheduler.finished(taskPrediction);
                     }
@@ -106,17 +117,20 @@ public class LoadBalancer implements AutoCloseable {
     }
 
     private <T> TaskPrediction<T> scheduleTask(RemoteCallable<T> callable, double[] input) {
-        double[] score = this.inputToScorePredictor.predict(input);
-        double[] timeAndResources = this.scoreToResourcesPredictor.predict(score);
+        double[] score = this.inputToTaskSizePredictor.predict(input);
+        double[] timeAndResources = this.taskSizeToResourcesPredictor.predict(score);
 
         double timePrediction = timeAndResources[0];
         double[] resourcePrediction = Arrays.copyOfRange(timeAndResources, 1, timeAndResources.length);
 
-        return this.scheduler.schedule(callable, timePrediction, resourcePrediction, this.workerNodeAddresses);
+        return this.scheduler.schedule(callable, timePrediction, resourcePrediction, this.workerNodeAddresses.keySet());
     }
 
-    private <T> T executeOnSpecifiedWorker(InetSocketAddress chosenAddress, RemoteCallable<T> callable)
+    private <T> T executeOnSpecifiedWorker(InetSocketAddress chosenAddress, RemoteCallable<T> callable, CGroup cGroup)
             throws IOException {
+        if (cGroup != null) {
+            callable = this.wrapWithCGroup(callable, cGroup);
+        }
         try (
                 Socket worker = new Socket(chosenAddress.getAddress(), chosenAddress.getPort());
                 Output out = new Output(worker.getOutputStream());
@@ -134,28 +148,18 @@ public class LoadBalancer implements AutoCloseable {
         }
     }
 
+    private <T> RemoteCallable<T> wrapWithCGroup(RemoteCallable<T> callable, CGroup cGroup) {
+        return () -> {
+            cGroup.create("");
+            cGroup.classify("");
+            T result = callable.call();
+            cGroup.delete("");
+            return result;
+        };
+    }
+
     @Override
     public void close() {
         this.executorService.shutdown();
-    }
-
-    public static void main(String... args) {
-
-        try(LoadBalancer loadBalancer = new LoadBalancer()) {
-            loadBalancer.addWorkerNodeAddresses(
-                    new InetSocketAddress(InetAddress.getLocalHost(), WorkerNode.DEFAULT_RPC_PORT));
-            String testString = "SUCCESS";
-            String anonymous = loadBalancer.executeOnWorker(new RemoteCallable<String>() {
-                @Override
-                public String call() {
-                    return testString;
-                }
-            }).get();
-            String lambda = loadBalancer.executeOnWorker(() -> testString).get();
-
-            System.out.printf("Anonymous:\t%s %nLambda:\t\t%s", anonymous, lambda);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 }

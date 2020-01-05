@@ -23,6 +23,16 @@ public class WorkerNode implements AutoCloseable {
     private final ServerSocket serverSocket;
     private final Kryo kryo;
 
+
+    /**
+     * Create a new node to accept tasks on the default port ({@link WorkerNode#DEFAULT_RPC_PORT}).
+     *
+     * @throws IOException In case the port is already in use.
+     */
+    public WorkerNode () throws IOException {
+        this(DEFAULT_RPC_PORT);
+    }
+
     /**
      * Create a new node to accept tasks on the specified port.
      *
@@ -75,15 +85,5 @@ public class WorkerNode implements AutoCloseable {
     @Override
     public void close() throws IOException {
         this.stop();
-    }
-
-    public static void main(String... args) {
-        try (
-                WorkerNode workerNode = new WorkerNode(DEFAULT_RPC_PORT)
-        ) {
-            workerNode.start();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 }
