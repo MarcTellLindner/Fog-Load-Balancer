@@ -52,7 +52,7 @@ public class Trainer {
      * @param types          The additional metrics to measure.
      * @return The trainer this method was called on.
      */
-    private Trainer measure(String host, int rpcPort, int monitoringPort, String password, MetricType... types) {
+    public Trainer measure(String host, int rpcPort, int monitoringPort, String password, MetricType... types) {
 
         LoadBalancer loadBalancer = new LoadBalancer();
         loadBalancer.addWorkerNodeAddress(new InetSocketAddress(host, rpcPort), password);
@@ -81,7 +81,8 @@ public class Trainer {
             long rnt;
             HashMap<MetricType, Double> data = new HashMap<>();
             try {
-                MetricsGetter metricsGetter = new MetricsGetter(new InetSocketAddress(host, monitoringPort), 1);
+                MetricsGetter metricsGetter = new MetricsGetter(
+                        new InetSocketAddress(host, monitoringPort), 1_000);
                 metricsGetter.start();
 
                 long startTime = System.nanoTime(); // Network time included at the moment
@@ -95,7 +96,7 @@ public class Trainer {
                 }
 
             } catch (IOException | InterruptedException | ExecutionException e) {
-                e.printStackTrace();
+                // We missed some data -> skip this entry
                 continue;
             }
 

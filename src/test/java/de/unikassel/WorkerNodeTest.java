@@ -4,7 +4,6 @@ import de.unikassel.util.nativ.jna.ThreadUtil;
 import de.unikassel.util.shell.Shell;
 import de.unikassel.util.shell.ShellCommand;
 import de.unikassel.util.shell.ShellResult;
-import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.IOException;

@@ -108,7 +108,7 @@ public class LoadBalancer implements AutoCloseable {
                     scheduler.started(taskPrediction);
                     try {
                         return executeOnSpecifiedWorker(taskPrediction.worker, taskPrediction.task,
-                                cGroupBuilder.buildCGroup());
+                                cGroupBuilder.buildCGroup(taskPrediction.resources));
                     } finally {
                         scheduler.finished(taskPrediction);
                     }

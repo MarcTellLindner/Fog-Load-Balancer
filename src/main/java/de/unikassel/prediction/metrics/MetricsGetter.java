@@ -19,7 +19,7 @@ public class MetricsGetter {
      * Create new metrics-getter, connected to the specified address.
      *
      * @param workerNode The address of the {@link de.unikassel.WorkerNode} to connect to-
-     * @param frequency  The frequency to request data with in seconds.
+     * @param frequency  The frequency to request data with in milliseconds.
      */
     public MetricsGetter(InetSocketAddress workerNode, long frequency) {
         try {
@@ -36,7 +36,7 @@ public class MetricsGetter {
                 while (!Thread.currentThread().isInterrupted()) {
                     threadData.add(parser.parse(get()));
                     try {
-                        Thread.sleep(frequency * 1_000);
+                        Thread.sleep(frequency);
                     } catch (InterruptedException ignored) {
                         break; // The thread was interrupted while waiting => Stop the loop
                     }
