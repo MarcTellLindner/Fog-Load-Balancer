@@ -5,30 +5,26 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import de.unikassel.cgroup.CGroup;
 import de.unikassel.cgroup.CGroupBuilder;
-import de.unikassel.cgroup.Controller;
-import de.unikassel.cgroup.options.Cpu;
-import de.unikassel.cgroup.options.Memory;
 import de.unikassel.prediction.pyearth.Predictor;
 import de.unikassel.schedule.Scheduler;
 import de.unikassel.schedule.SimpleScheduler;
+import de.unikassel.schedule.data.ScheduledFuture;
 import de.unikassel.schedule.data.TaskPrediction;
 import de.unikassel.util.serialization.RemoteCallable;
 import de.unikassel.util.serialization.Serializer;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * Distributes load between multiple {@link WorkerNode}-instances it is connected to.
  */
 public class LoadBalancer implements AutoCloseable {
+
+    int n = 0;
 
     private final Scheduler scheduler;
     private final Predictor inputToTaskSizePredictor;
@@ -37,9 +33,8 @@ public class LoadBalancer implements AutoCloseable {
 
     private final LinkedHashMap<InetSocketAddress, String> workerNodeAddresses;
 
-    private final Kryo kryo;
-
-    private final ScheduledExecutorService executorService;
+    private final ExecutorService executorService;
+    private final HashMap<TaskPrediction<?>, HashSet<RunnableFuture<?>>> waiting;
 
 
     /**
@@ -66,9 +61,8 @@ public class LoadBalancer implements AutoCloseable {
 
         this.workerNodeAddresses = new LinkedHashMap<>();
 
-        this.kryo = Serializer.setupKryoInstance();
-
-        this.executorService = Executors.newScheduledThreadPool(20);
+        this.executorService = Executors.newCachedThreadPool();
+        waiting = new HashMap<>();
     }
 
     /**
@@ -77,7 +71,7 @@ public class LoadBalancer implements AutoCloseable {
      * @param address  The new {@link WorkerNode}s address and port.
      * @param password The new {@link WorkerNode}s password.
      */
-    public void addWorkerNodeAddress(InetSocketAddress address, String password) {
+    public synchronized void addWorkerNodeAddress(InetSocketAddress address, String password) {
         this.workerNodeAddresses.put(address, password);
     }
 
@@ -86,7 +80,7 @@ public class LoadBalancer implements AutoCloseable {
      *
      * @param addresses The new {@link WorkerNode}s addresses, ports as keys and passwords as values.
      */
-    public void addWorkerNodeAddresses(Map<InetSocketAddress, String> addresses) {
+    public synchronized void addWorkerNodeAddresses(Map<InetSocketAddress, String> addresses) {
         this.workerNodeAddresses.putAll(addresses);
     }
 
@@ -96,24 +90,76 @@ public class LoadBalancer implements AutoCloseable {
      * @param callable The task to be executed remotely.
      * @param input    The values to use for the prediction of time and resources.
      * @param <T>      The type of the returned value.
-     * @return A Future of the execution on the chosen {@link WorkerNode}.
+     * @return A {@link ScheduledFuture} of the execution on the chosen {@link WorkerNode}.
      * @throws IOException If the callable could not be scheduled by the scheduler.
      */
-    public <T> Future<T> executeOnWorker(RemoteCallable<T> callable, double... input) throws IOException {
+    public synchronized <T> ScheduledFuture<T> executeOnWorker(RemoteCallable<T> callable, double... input) throws IOException {
         TaskPrediction<T> taskPrediction = scheduleTask(callable, input);
         if (taskPrediction == null) {
             throw new IOException("Could not schedule task!");
         }
-        return this.executorService.schedule(() -> {
-                    scheduler.started(taskPrediction);
-                    try {
-                        return executeOnSpecifiedWorker(taskPrediction.worker, taskPrediction.task,
-                                cGroupBuilder.buildCGroup(taskPrediction.resources));
-                    } finally {
-                        scheduler.finished(taskPrediction);
-                    }
-                },
-                (long) (taskPrediction.time - System.currentTimeMillis()), TimeUnit.MILLISECONDS);
+
+        RunnableFuture<T> future = new FutureTask<>(() -> {
+//            ++n;
+//            System.out.println("N: " + n);
+
+            scheduler.started(taskPrediction);
+            waiting.put(taskPrediction, new HashSet<>());
+            System.out.println(waiting.size());
+//            System.out.println("\tADDED");
+            try {
+                return executeOnSpecifiedWorker(taskPrediction.worker, taskPrediction.task,
+                        cGroupBuilder.buildCGroup(taskPrediction.resources));
+            } finally {
+//                --n;
+//
+//                System.out.println("N: " + n);
+                scheduler.finished(taskPrediction);
+                startWaitingAfter(taskPrediction);
+            }
+        });
+
+        if (taskPrediction.startAfter == null || !waiting.containsKey(taskPrediction.startAfter)) {
+            // Start the task immediately
+            executorService.submit(future);
+        } else {
+            // Wait for other task
+            waiting.get(taskPrediction.startAfter).add(future);
+//            System.out.println(waiting.get(taskPrediction.startAfter).size());
+        }
+
+        return new ScheduledFuture<>(future, taskPrediction);
+//
+//
+//        ScheduledFuture<T> future = new ScheduledFuture<>(this.executorService.submit(() -> {
+//            if (taskPrediction.startAfter != null) {
+//                waiting.get(taskPrediction.startAfter).get();
+//            }
+//            scheduler.started(taskPrediction);
+//            this.active++;
+//            if (shouldPrint) System.out.println(active);
+//            try {
+//                return executeOnSpecifiedWorker(taskPrediction.worker, taskPrediction.task,
+//                        cGroupBuilder.buildCGroup(taskPrediction.resources));
+//            } finally {
+//                waiting.remove(taskPrediction);
+//                System.out.println(waiting.size());
+//                this.active--;
+//            }
+//        }),
+//
+//                // Save the prediction
+//                taskPrediction);
+//        this.waiting.put(taskPrediction, future);
+//        return future;
+    }
+
+    private synchronized void startWaitingAfter(TaskPrediction<?> taskPrediction) {
+        for (RunnableFuture<?> waitingFuture : this.waiting.get(taskPrediction)) {
+            executorService.submit(waitingFuture);
+        }
+//        System.out.println("\tREMOVED");
+        this.waiting.remove(taskPrediction);
     }
 
     private <T> TaskPrediction<T> scheduleTask(RemoteCallable<T> callable, double[] input) {
@@ -136,6 +182,7 @@ public class LoadBalancer implements AutoCloseable {
                 Output out = new Output(worker.getOutputStream());
                 Input in = new Input(worker.getInputStream())
         ) {
+            Kryo kryo = Serializer.setupKryoInstance();
             kryo.writeClassAndObject(out, callable);
             out.flush();
 
@@ -159,7 +206,7 @@ public class LoadBalancer implements AutoCloseable {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         this.executorService.shutdown();
     }
 }

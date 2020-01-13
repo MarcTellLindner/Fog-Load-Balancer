@@ -28,11 +28,12 @@ public class QueueScheduler implements Scheduler {
 
 
     @Override
-    public <T> TaskPrediction<T> schedule(RemoteCallable<T> task, double timePrediction, double[] resourcePrediction,
-                                          Set<InetSocketAddress> workers) {
+    public synchronized <T> TaskPrediction<T> schedule(RemoteCallable<T> task,
+                                                       double timePrediction, double[] resourcePrediction,
+                                                       Set<InetSocketAddress> workers) {
 
         // A change happens, whenever a task starts or ends
-        TreeMap<Double, Map.Entry<InetSocketAddress, double[]>> allChanges = new TreeMap<>(Double::compare);
+        TreeMap<Double, WorkerResources> allChanges = new TreeMap<>(Double::compare);
         for (TaskPrediction<?> taskWaiting : this.waiting) {
             allChanges.putAll(predictions(taskWaiting, false)); // Waiting will start and end
         }
@@ -41,7 +42,8 @@ public class QueueScheduler implements Scheduler {
         }
 
         // Create a map, accessed by the worker, that holds all changes of this worker with accumulated values
-        Map<InetSocketAddress, TreeMap<Double, double[]>> totalWorkerResources = workers.stream().collect(Collectors
+        Map<InetSocketAddress, TreeMap<Double, WorkerResources>> totalWorkerResources
+                = workers.stream().collect(Collectors
                 .toMap(
                         w -> w,
                         w -> new TreeMap<>(Double::compareTo)
@@ -50,31 +52,30 @@ public class QueueScheduler implements Scheduler {
         // Get the currently free resources per worker
         for (InetSocketAddress worker : workers) {
             WorkerResources res = getCurrentFreeResources.apply(worker);
-            totalWorkerResources.get(worker).put(res.timestamp, res.freeResources);
+            totalWorkerResources.get(worker).put(res.timestamp, res);
         }
-
         // Add all scheduled changes to the worker, on which each task will be executed
-        for (Map.Entry<Double, Map.Entry<InetSocketAddress, double[]>> change : allChanges.entrySet()) {
+        for (Map.Entry<Double, WorkerResources> change : allChanges.entrySet()) {
 
             // Get values of the change
             Double time = change.getKey();
-            InetSocketAddress worker = change.getValue().getKey();
-            double[] res = change.getValue().getValue();
+            InetSocketAddress worker = change.getValue().workerAddress;
+            double[] res = change.getValue().resources;
 
             // Access the previously inserted value
-            double[] previousResources = totalWorkerResources.get(worker).lastEntry().getValue();
+            double[] previousResources = totalWorkerResources.get(worker).lastEntry().getValue().resources;
 
             // Apply the change
             double[] simulatedResources = add(previousResources, res);
 
             // Remember the value
-            totalWorkerResources.get(worker).put(time, simulatedResources);
+            totalWorkerResources.get(worker).put(time, new WorkerResources(time, worker, simulatedResources,
+                    change.getValue().taskPrediction));
         }
 
         // Flatten all collected information in a list of WorkerResources
         WorkerResources[] resources = totalWorkerResources.entrySet().stream()
-                .flatMap(eOuter -> eOuter.getValue().entrySet().stream()
-                        .map(eInner -> new WorkerResources(eInner.getKey(), eOuter.getKey(), eInner.getValue()))
+                .flatMap(eOuter -> eOuter.getValue().values().stream()
                 ).toArray(WorkerResources[]::new);
 
         // Sort by timestamp
@@ -88,7 +89,7 @@ public class QueueScheduler implements Scheduler {
                 WorkerResources next = resources[j];
 
                 if (next.workerAddress.equals(current.workerAddress) // Is this our worker?
-                        && !lessEqual(resourcePrediction, next.freeResources)) {
+                        && !lessEqual(resourcePrediction, next.resources)) {
                     break; // Some other task will take the required resources -> no match
                 }
                 if (timePrediction > next.timestamp - current.timestamp && j + 1 < resources.length) {
@@ -96,10 +97,13 @@ public class QueueScheduler implements Scheduler {
                 }
 
                 // We found a match -> schedule task here!
-                TaskPrediction<T> scheduled = new TaskPrediction<>(task, current.timestamp, timePrediction,
-                        current.workerAddress, resourcePrediction);
+                TaskPrediction<T> scheduled = new TaskPrediction<T>(task, Math.max(current.timestamp, System.nanoTime()),
+                        timePrediction, current.workerAddress, resourcePrediction, current.taskPrediction);
 
                 waiting.add(scheduled); // Remember
+                //TODO: if(waiting.size() + processed.size() == 100) {
+                //   this.printState();
+                // }
                 return scheduled;
             }
         }
@@ -109,27 +113,26 @@ public class QueueScheduler implements Scheduler {
     }
 
     @Override
-    public void started(TaskPrediction<?> taskPrediction) {
+    public synchronized void started(TaskPrediction<?> taskPrediction) {
         this.waiting.remove(taskPrediction);
         this.processed.add(taskPrediction);
     }
 
     @Override
-    public void finished(TaskPrediction<?> taskPrediction) {
+    public synchronized void finished(TaskPrediction<?> taskPrediction) {
         this.processed.remove(taskPrediction);
     }
 
-    private Map<Double, Map.Entry<InetSocketAddress, double[]>> predictions(TaskPrediction<?> task, boolean started) {
-        HashMap<Double, Map.Entry<InetSocketAddress, double[]>> map = new HashMap<>();
+    private Map<Double, WorkerResources> predictions(TaskPrediction<?> task, boolean started) {
+        HashMap<Double, WorkerResources> map = new HashMap<>();
         // If task started already, skip this step
+        double time = Math.max(task.time, System.nanoTime());
         if (!started) {
             // When the task starts, it takes the required resources
-            map.put(Math.max(task.time, System.currentTimeMillis()),
-                    new AbstractMap.SimpleImmutableEntry<>(task.worker, negative(task.resources)));
+            map.put(time, new WorkerResources(time, task.worker, negative(task.resources), task));
         }
         // When it finishes, the resources become available again
-        map.put(Math.max(task.time + task.duration, System.currentTimeMillis()),
-                new AbstractMap.SimpleImmutableEntry<>(task.worker, task.resources));
+        map.put(time, new WorkerResources(time, task.worker, task.resources, task));
         return map;
     }
 
@@ -144,4 +147,26 @@ public class QueueScheduler implements Scheduler {
     private boolean lessEqual(double[] a, double[] b) {
         return IntStream.range(0, a.length).allMatch(i -> a[i] <= b[i]);
     }
+
+//    private void printState() {
+//        long now = System.nanoTime();
+//        for (TaskPrediction<?> t : processed) {
+//            long finishes = (long) (t.time + t.duration) - now;
+//            for (int i = 0; i < finishes / 1_000; i++) {
+//                System.out.print("-");
+//            }
+//            System.out.println();
+//        }
+//        for (TaskPrediction<?> t : waiting) {
+//            long starts = (long) t.time - now;
+//            for (int i = 0; i < starts / 1_000; i++) {
+//                System.out.print(" ");
+//            }
+//            long finishes = (long) t.duration;
+//            for (int i = 0; i < finishes / 1_000; i++) {
+//                System.out.print("-");
+//            }
+//            System.out.println();
+//        }
+//    }
 }

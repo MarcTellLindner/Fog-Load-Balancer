@@ -52,7 +52,7 @@ public class MetricsGetter {
     /**
      * Start requesting the metrics.
      */
-    public void start() {
+    public synchronized void start() {
         updateThread.start();
     }
 
@@ -61,7 +61,7 @@ public class MetricsGetter {
      *
      * @return The collected data.
      */
-    public List<HashMap<MetricType, HashSet<MetricData>>> stop() {
+    public synchronized List<HashMap<MetricType, HashSet<MetricData>>> stop() {
         updateThread.interrupt();
         try {
             updateThread.join();
@@ -72,7 +72,7 @@ public class MetricsGetter {
         }
     }
 
-    private String[] get() throws IOException {
+    private synchronized String[] get() throws IOException {
         HttpURLConnection connection = (HttpURLConnection) this.url.openConnection();
         try (
                 BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))
@@ -91,7 +91,7 @@ public class MetricsGetter {
      * @throws IOException In case of connection problems.
      */
     public static HashMap<MetricType, HashSet<MetricData>> getMetrics(InetSocketAddress workerNode) throws IOException {
-        MetricsGetter singleUseGetter = new MetricsGetter(workerNode, -1);
+        MetricsGetter singleUseGetter = new MetricsGetter(workerNode, Long.MAX_VALUE);
         return new MetricsParser().parse(singleUseGetter.get());
     }
 }

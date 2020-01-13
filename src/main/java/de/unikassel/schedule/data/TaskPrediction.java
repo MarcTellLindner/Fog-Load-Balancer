@@ -10,13 +10,15 @@ public class TaskPrediction<T> {
     public final double duration;
     public final InetSocketAddress worker;
     public final double[] resources;
+    public final TaskPrediction<?> startAfter;
 
     public TaskPrediction(RemoteCallable<T> task, double time, double duration,
-                          InetSocketAddress worker, double[] resources) {
+                          InetSocketAddress worker, double[] resources, TaskPrediction<?> startAfter) {
         this.task = task;
         this.time = time;
         this.duration = duration;
         this.worker = worker;
         this.resources = resources;
+        this.startAfter = startAfter;
     }
 }

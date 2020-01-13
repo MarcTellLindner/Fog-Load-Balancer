@@ -23,8 +23,8 @@ public class Trainer {
     private final RemoteCallable<?>[] trainingCalls;
     private final double[][] trainingValues;
 
-    private final ArrayList<Double> localMilliTime;
-    private final ArrayList<Double> remoteMilliTime;
+    private final ArrayList<Double> localNanoTime;
+    private final ArrayList<Double> remoteNanoTime;
     private final LinkedHashMap<MetricType, ArrayList<Double>> metrics;
     private final ArrayList<double[]> relevantTrainingValues;
 
@@ -34,8 +34,8 @@ public class Trainer {
     public Trainer(RemoteCallable<?>[] trainingCalls, double[][] trainingValues) {
         this.trainingCalls = trainingCalls;
         this.trainingValues = trainingValues;
-        this.localMilliTime = new ArrayList<>();
-        this.remoteMilliTime = new ArrayList<>();
+        this.localNanoTime = new ArrayList<>();
+        this.remoteNanoTime = new ArrayList<>();
         this.metrics = new LinkedHashMap<>();
         this.relevantTrainingValues = new ArrayList<>();
     }
@@ -56,9 +56,21 @@ public class Trainer {
 
         LoadBalancer loadBalancer = new LoadBalancer();
         loadBalancer.addWorkerNodeAddress(new InetSocketAddress(host, rpcPort), password);
-
         for (MetricType type : types) {
             metrics.put(type, new ArrayList<>());
+        }
+
+        // Measure resources in idle state
+        EnumMap<MetricType, Double> idleResources = new EnumMap<>(MetricType.class);
+        MetricsParser idleParser = new MetricsParser();
+        try {
+            List<HashMap<MetricType, HashSet<MetricData>>> idle
+                    = Collections.singletonList(MetricsGetter.getMetrics(new InetSocketAddress(host, monitoringPort)));
+            for (MetricType type : types) {
+                idleResources.put(type, idleParser.getMax(type, idle, true).orElseThrow(IOException::new).value);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Could not get idle metrics", e);
         }
 
         for (int i = 0; i < this.trainingCalls.length; ++i) {
@@ -79,7 +91,7 @@ public class Trainer {
 
             // Call remotely and measure values:
             long rnt;
-            HashMap<MetricType, Double> data = new HashMap<>();
+            EnumMap<MetricType, Double> data = new EnumMap<>(MetricType.class);
             try {
                 MetricsGetter metricsGetter = new MetricsGetter(
                         new InetSocketAddress(host, monitoringPort), 1_000);
@@ -101,9 +113,9 @@ public class Trainer {
             }
 
             // Everything worked, so add the results
-            localMilliTime.add(lnt / 1_000d);   // ns to ms
-            remoteMilliTime.add(rnt / 1_000d);  // ns to ms
-            metrics.forEach((k, v) -> v.add(data.get(k))); // Add the monitoring-data
+            localNanoTime.add((double) lnt);
+            remoteNanoTime.add((double) rnt);
+            metrics.forEach((k, v) -> v.add(data.get(k)/* - idleResources.get(k) */)); // Add the monitoring-data
             this.relevantTrainingValues.add(value); // Add the training value to be considered
         }
 
@@ -122,10 +134,10 @@ public class Trainer {
     public Trainer train() throws IOException {
 
         double[][] values = relevantTrainingValues.toArray(new double[0][]);
-        double[][] scores = localMilliTime.stream().map(d -> new double[]{d}).toArray(double[][]::new);
-        double[][] resources = IntStream.range(0, remoteMilliTime.size())
+        double[][] scores = localNanoTime.stream().map(d -> new double[]{d}).toArray(double[][]::new);
+        double[][] resources = IntStream.range(0, remoteNanoTime.size())
                 .mapToObj(
-                        i -> Stream.concat(Stream.of(remoteMilliTime), metrics.values().stream())
+                        i -> Stream.concat(Stream.of(remoteNanoTime), metrics.values().stream())
                                 .mapToDouble(list -> list.get(i)).toArray()
                 ).toArray(double[][]::new);
 

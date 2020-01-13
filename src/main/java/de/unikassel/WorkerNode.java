@@ -21,7 +21,6 @@ public class WorkerNode implements AutoCloseable {
     public static final int DEFAULT_RPC_PORT = 42043;
 
     private final ServerSocket serverSocket;
-    private final Kryo kryo;
 
 
     /**
@@ -41,7 +40,6 @@ public class WorkerNode implements AutoCloseable {
      */
     public WorkerNode(int port) throws IOException {
         this.serverSocket = new ServerSocket(port);
-        kryo = Serializer.setupKryoInstance();
     }
 
     /**
@@ -58,6 +56,7 @@ public class WorkerNode implements AutoCloseable {
                         Input in = new Input(inputStream);
                         Output out = new Output(outputStream)
                 ) {
+                    Kryo kryo = Serializer.setupKryoInstance();
                     Callable<?> callable = (Callable<?>) kryo.readClassAndObject(in);
                     try {
                         Object result = callable.call();

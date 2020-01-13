@@ -5,11 +5,13 @@ import java.net.InetSocketAddress;
 public class WorkerResources {
     public final double timestamp;
     public final InetSocketAddress workerAddress;
-    public final double[] freeResources;
+    public final double[] resources;
+    public final TaskPrediction<?> taskPrediction;
 
-    public WorkerResources(double timestamp, InetSocketAddress workerAddress, double[] freeResources) {
+    public WorkerResources(double timestamp, InetSocketAddress workerAddress, double[] resources, TaskPrediction<?> taskPrediction) {
         this.timestamp = timestamp;
         this.workerAddress = workerAddress;
-        this.freeResources = freeResources;
+        this.resources = resources;
+        this.taskPrediction = taskPrediction;
     }
 }
