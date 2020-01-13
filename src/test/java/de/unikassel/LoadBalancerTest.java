@@ -189,7 +189,6 @@ public class LoadBalancerTest {
                                 .map(m -> m.value).orElseThrow(IOException::new);
 
                 double[] freeResources = {cpuFree, memFree};
-                //TODO: System.out.printf("Free CPU:\t%.2f%nFree MEM:\t%.2f%n%n", cpuFree, memFree);
                 return new WorkerResources(System.nanoTime(), worker, freeResources, null);
             } catch (IOException e) {
                 e.printStackTrace();

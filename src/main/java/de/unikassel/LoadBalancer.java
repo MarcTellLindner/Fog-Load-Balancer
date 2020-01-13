@@ -24,8 +24,6 @@ import java.util.concurrent.*;
  */
 public class LoadBalancer implements AutoCloseable {
 
-    int n = 0;
-
     private final Scheduler scheduler;
     private final Predictor inputToTaskSizePredictor;
     private final Predictor taskSizeToResourcesPredictor;
@@ -99,22 +97,15 @@ public class LoadBalancer implements AutoCloseable {
             throw new IOException("Could not schedule task!");
         }
 
+        waiting.put(taskPrediction, new HashSet<>());
+
         RunnableFuture<T> future = new FutureTask<>(() -> {
-//            ++n;
-//            System.out.println("N: " + n);
 
             scheduler.started(taskPrediction);
-            waiting.put(taskPrediction, new HashSet<>());
-            System.out.println(waiting.size());
-//            System.out.println("\tADDED");
             try {
                 return executeOnSpecifiedWorker(taskPrediction.worker, taskPrediction.task,
                         cGroupBuilder.buildCGroup(taskPrediction.resources));
             } finally {
-//                --n;
-//
-//                System.out.println("N: " + n);
-                scheduler.finished(taskPrediction);
                 startWaitingAfter(taskPrediction);
             }
         });
@@ -125,33 +116,9 @@ public class LoadBalancer implements AutoCloseable {
         } else {
             // Wait for other task
             waiting.get(taskPrediction.startAfter).add(future);
-//            System.out.println(waiting.get(taskPrediction.startAfter).size());
         }
 
         return new ScheduledFuture<>(future, taskPrediction);
-//
-//
-//        ScheduledFuture<T> future = new ScheduledFuture<>(this.executorService.submit(() -> {
-//            if (taskPrediction.startAfter != null) {
-//                waiting.get(taskPrediction.startAfter).get();
-//            }
-//            scheduler.started(taskPrediction);
-//            this.active++;
-//            if (shouldPrint) System.out.println(active);
-//            try {
-//                return executeOnSpecifiedWorker(taskPrediction.worker, taskPrediction.task,
-//                        cGroupBuilder.buildCGroup(taskPrediction.resources));
-//            } finally {
-//                waiting.remove(taskPrediction);
-//                System.out.println(waiting.size());
-//                this.active--;
-//            }
-//        }),
-//
-//                // Save the prediction
-//                taskPrediction);
-//        this.waiting.put(taskPrediction, future);
-//        return future;
     }
 
     private synchronized void startWaitingAfter(TaskPrediction<?> taskPrediction) {
