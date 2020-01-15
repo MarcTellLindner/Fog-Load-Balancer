@@ -30,50 +30,27 @@ import static org.junit.Assert.assertArrayEquals;
 
 public class LoadBalancerTest {
 
-    //    @Test
-//    public void test() {
-//
-//        try (LoadBalancer loadBalancer = new LoadBalancer(new SimpleScheduler(), x -> new double[1], x -> new double[1],
-//                predictions -> new CGroup("Test", Controller.CPU, Controller.MEMORY)
-//                        .withOption(Cpu.SHARES, 1024)
-//                        .withOption(Memory.LIMIT_IN_BYTES, 1024))
-//        ) {
-//            loadBalancer.addWorkerNodeAddress(
-//                    new InetSocketAddress(System.getenv("worker"), DEFAULT_RPC_PORT),
-//                    System.getenv("password"));
-//            String testString = "SUCCESS";
-//            String anonymous = loadBalancer.executeOnWorker(new RemoteCallable<String>() {
-//                @Override
-//                public String call() {
-//                    return testString;
-//                }
-//            }).get();
-//            String lambda = loadBalancer.executeOnWorker(() -> testString).get();
-//
-//            assertEquals(testString, anonymous);
-//            assertEquals(testString, lambda);
-//
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//    }
-
     @Test
-    public void sortingTest() throws IOException {
-        int trainingExamples = 100;
-        int testingExamples = 100;
-        int maxLength = 20_000;
-        long maxSize = 1_000_000_000L;
+    public void sortingTest() throws IOException, InterruptedException {
+        int trainingExamples = 500;
+        int testingExamples = 1_000;
+        int minLength = 30_000;
+        int maxLength = 40_000;
+        long minSize = 30_000L;
+        long maxSize = 40_000L;
+
+        int deltaLength = maxLength - minLength;
+        long deltaSize = maxSize - minSize;
 
         Random random = new Random();
-        PrimitiveIterator.OfInt lengths = random.ints(0, maxLength).iterator();
-        PrimitiveIterator.OfLong sizes = random.longs(0L, maxSize).iterator();
+        PrimitiveIterator.OfInt lengths = random.ints(minLength, maxLength).iterator();
+        PrimitiveIterator.OfLong sizes = random.longs(minSize, maxSize).iterator();
 
         RemoteCallable<?>[] trainingCalls = new RemoteCallable<?>[trainingExamples];
         double[][] trainingValues = new double[trainingExamples][];
         for (int i = 0; i < trainingExamples; ++i) {
-            final int length = lengths.nextInt();
-            final long size = sizes.nextLong();
+            final int length = i * deltaLength / trainingExamples + minLength;
+            final long size = i * deltaSize / trainingExamples + minSize;
             trainingCalls[i] = () -> new BubbleSort().doSomethingComplex(length, size);
             trainingValues[i] = new double[]{length, size};
         }
@@ -85,7 +62,11 @@ public class LoadBalancerTest {
 
         CGroupBuilder cGroupBuilder = createCGroupBuilder();
 
-        System.out.println("Finished training");
+        System.out.printf("Finished training:%n" +
+                        "\t Input to task size predictor: %s%n" +
+                        "\t Task site to resource predictor: %s%n%n",
+                trainer.getInputToTaskSizeFormula(), trainer.getInputToTaskSizeFormula());
+
 
         for (Scheduler scheduler : new Scheduler[]{basicScheduler, smartScheduler}) {
             try (
@@ -102,11 +83,13 @@ public class LoadBalancerTest {
                 long tStart = System.currentTimeMillis();
                 for (int i = 0; i < testingExamples; ++i) {
                     final int length = lengths.nextInt();
-                    final long size = sizes.nextLong();
+                    final long size = length;// sizes.nextLong();
 
                     futures.add(loadBalancer.executeOnWorker((RemoteCallable<long[]>)
                             () -> new BubbleSort().doSomethingComplex(length, size), length, size
                     ));
+
+                    Thread.sleep(10);
                 }
 
                 long[][] longs = futures.stream().map(f -> {
@@ -170,7 +153,7 @@ public class LoadBalancerTest {
                 .train();
     }
 
-    private QueueScheduler createScheduler() throws IOException {
+    private QueueScheduler createScheduler() {
         return new QueueScheduler(worker -> {
             try {
                 List<HashMap<MetricType, HashSet<MetricData>>> metrics
@@ -180,6 +163,7 @@ public class LoadBalancerTest {
                 // 1. - used
                 double cpuFree = parser.getMax(MetricType.PROCESS_CPU_USAGE, metrics, true)
                         .map(m -> 1. - m.value).orElseThrow(IOException::new);
+                cpuFree *= 0.75; // Just to be safe
 
                 // Max - used
                 double memFree = parser.getMax(MetricType.JVM_MEMORY_MAX, metrics, true)
@@ -187,6 +171,7 @@ public class LoadBalancerTest {
                         -
                         parser.getMax(MetricType.JVM_MEMORY_USED, metrics, true)
                                 .map(m -> m.value).orElseThrow(IOException::new);
+                memFree *= 0.75; // Just to be safe
 
                 double[] freeResources = {cpuFree, memFree};
                 return new WorkerResources(System.nanoTime(), worker, freeResources, null);
@@ -200,7 +185,7 @@ public class LoadBalancerTest {
     private CGroupBuilder createCGroupBuilder() {
         return predictions ->
                 new CGroup(String.format("CG%d", Arrays.hashCode(predictions)), Controller.CPU, Controller.MEMORY)
-                        .withOption(Cpu.SHARES, (int) (predictions[0] * 1024))
-                        .withOption(Memory.LIMIT_IN_BYTES, (int) (predictions[1]));
+                        .withOption(Cpu.SHARES, (int) (predictions[0] * 1024 * 1.25))     // Allow 25% more
+                        .withOption(Memory.LIMIT_IN_BYTES, (int) (predictions[1] * 1.25));// than predicted
     }
 }

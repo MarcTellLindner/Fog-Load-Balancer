@@ -23,10 +23,10 @@ public class PyEarth {
      *
      * @param x Value of X for training.
      * @param y Value of y for training.
-     * @return Trained {@link Predictor}.
+     * @return Formula representing the result of the training.
      * @throws IOException If a problems occurs while executing py-earth.
      */
-    public static Predictor trainEarthModel(double[][] x, double[][] y) throws IOException {
+    public static String trainEarthModel(double[][] x, double[][] y) throws IOException {
         Shell shell = new Shell();
         shell.addShellCommand(new ShellCommand("python3 python/earth.py", false).withArgs(
                 Arrays.stream(x).map(row ->
@@ -45,8 +45,7 @@ public class PyEarth {
         if (result.exitVal != 0) {
             throw new IOException("Exception while training model: " + String.join("\n", result.err));
         }
-        String formula = readFormula(result.out.get(0));
-        return createFunction(formula);
+        return readFormula(result.out.get(0));
     }
 
     private static String readFormula(String result) {
@@ -56,7 +55,14 @@ public class PyEarth {
         );
     }
 
-    private static Predictor createFunction(String formula) throws IOException {
+    /**
+     * Compile a predictor from a formula.
+     *
+     * @param formula String containing the formula.
+     * @return A compiled {@link Predictor}.
+     * @throws IOException If an exception occurs during compilation.
+     */
+    public static Predictor compilePredictor(String formula) throws IOException {
         try {
             ExpressionEvaluator ee = new ExpressionEvaluator();
             ee.setDefaultImports("static java.lang.Math.*"); // Allow access to all functions in java.lang.Math

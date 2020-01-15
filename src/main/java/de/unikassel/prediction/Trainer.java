@@ -28,7 +28,10 @@ public class Trainer {
     private final LinkedHashMap<MetricType, ArrayList<Double>> metrics;
     private final ArrayList<double[]> relevantTrainingValues;
 
+    private String inputToTaskSizeFormula;
     private Predictor inputToTaskSizePredictor;
+
+    private String taskSizeToResourceFormula;
     private Predictor taskSizeToResourcePredictor;
 
     public Trainer(RemoteCallable<?>[] trainingCalls, double[][] trainingValues) {
@@ -60,18 +63,18 @@ public class Trainer {
             metrics.put(type, new ArrayList<>());
         }
 
-        // Measure resources in idle state
-        EnumMap<MetricType, Double> idleResources = new EnumMap<>(MetricType.class);
-        MetricsParser idleParser = new MetricsParser();
-        try {
-            List<HashMap<MetricType, HashSet<MetricData>>> idle
-                    = Collections.singletonList(MetricsGetter.getMetrics(new InetSocketAddress(host, monitoringPort)));
-            for (MetricType type : types) {
-                idleResources.put(type, idleParser.getMax(type, idle, true).orElseThrow(IOException::new).value);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Could not get idle metrics", e);
-        }
+//        // Measure resources in idle state
+//        EnumMap<MetricType, Double> idleResources = new EnumMap<>(MetricType.class);
+//        MetricsParser idleParser = new MetricsParser();
+//        try {
+//            List<HashMap<MetricType, HashSet<MetricData>>> idle
+//                    = Collections.singletonList(MetricsGetter.getMetrics(new InetSocketAddress(host, monitoringPort)));
+//            for (MetricType type : types) {
+//                idleResources.put(type, idleParser.getMax(type, idle, true).orElseThrow(IOException::new).value);
+//            }
+//        } catch (IOException e) {
+//            throw new RuntimeException("Could not get idle metrics", e);
+//        }
 
         for (int i = 0; i < this.trainingCalls.length; ++i) {
 
@@ -141,10 +144,22 @@ public class Trainer {
                                 .mapToDouble(list -> list.get(i)).toArray()
                 ).toArray(double[][]::new);
 
-        this.inputToTaskSizePredictor = PyEarth.trainEarthModel(values, scores);
-        this.taskSizeToResourcePredictor = PyEarth.trainEarthModel(scores, resources);
+        this.inputToTaskSizeFormula = PyEarth.trainEarthModel(values, scores);
+        this.inputToTaskSizePredictor = PyEarth.compilePredictor(this.inputToTaskSizeFormula);
+
+        this.taskSizeToResourceFormula = PyEarth.trainEarthModel(scores, resources);
+        this.taskSizeToResourcePredictor = PyEarth.compilePredictor(this.taskSizeToResourceFormula);
 
         return this;
+    }
+
+    /**
+     * Get the inputToTaskSizeFormula, if the {@link Trainer#train()}-method has already been called. Null otherwise.
+     *
+     * @return The formula to predict the task size or null.
+     */
+    public String getInputToTaskSizeFormula() {
+        return inputToTaskSizeFormula;
     }
 
     /**
@@ -154,6 +169,15 @@ public class Trainer {
      */
     public Predictor getInputToTaskSizePredictor() {
         return inputToTaskSizePredictor;
+    }
+
+    /**
+     * Get the taskSizeToResourceFormula, if the {@link Trainer#train()}-method has already been called. Null otherwise.
+     *
+     * @return The formula to predict the resources or null.
+     */
+    public String getTaskSizeToResourceFormula() {
+        return taskSizeToResourceFormula;
     }
 
     /**

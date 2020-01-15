@@ -64,11 +64,11 @@ public class MetricsGetter {
     public synchronized List<HashMap<MetricType, HashSet<MetricData>>> stop() {
         updateThread.interrupt();
         try {
-            updateThread.join();
+            updateThread.join(100);
             return data;
         } catch (InterruptedException e) {
             e.printStackTrace();
-            return Collections.emptyList();
+            return data;
         }
     }
 

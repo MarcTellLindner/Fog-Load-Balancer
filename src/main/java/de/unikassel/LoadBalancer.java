@@ -91,19 +91,20 @@ public class LoadBalancer implements AutoCloseable {
      * @return A {@link ScheduledFuture} of the execution on the chosen {@link WorkerNode}.
      * @throws IOException If the callable could not be scheduled by the scheduler.
      */
-    public synchronized <T> ScheduledFuture<T> executeOnWorker(RemoteCallable<T> callable, double... input) throws IOException {
+    public synchronized <T> ScheduledFuture<T> executeOnWorker(RemoteCallable<T> callable, double... input)
+            throws IOException {
         TaskPrediction<T> taskPrediction = scheduleTask(callable, input);
         if (taskPrediction == null) {
             throw new IOException("Could not schedule task!");
         }
 
+//        System.out.println("\t" + taskPrediction.hashCode() + "\tafter\t"
+//                + (taskPrediction.startAfter == null ? "START" : "" + taskPrediction.startAfter.hashCode()));
         waiting.put(taskPrediction, new HashSet<>());
 
         RunnableFuture<T> future = new FutureTask<>(() -> {
-
-            scheduler.started(taskPrediction);
             try {
-                return executeOnSpecifiedWorker(taskPrediction.worker, taskPrediction.task,
+                return executeOnSpecifiedWorker(taskPrediction.worker, taskPrediction,
                         cGroupBuilder.buildCGroup(taskPrediction.resources));
             } finally {
                 startWaitingAfter(taskPrediction);
@@ -125,7 +126,6 @@ public class LoadBalancer implements AutoCloseable {
         for (RunnableFuture<?> waitingFuture : this.waiting.get(taskPrediction)) {
             executorService.submit(waitingFuture);
         }
-//        System.out.println("\tREMOVED");
         this.waiting.remove(taskPrediction);
     }
 
@@ -133,14 +133,26 @@ public class LoadBalancer implements AutoCloseable {
         double[] score = this.inputToTaskSizePredictor.predict(input);
         double[] timeAndResources = this.taskSizeToResourcesPredictor.predict(score);
 
+        if (Arrays.stream(timeAndResources).anyMatch(d -> d < 0)) {
+            System.err.printf("Task %d had a negative time or resource prediction -> setting value to 0%n",
+                    callable.hashCode());
+            for (int i = 0; i < timeAndResources.length; ++i) {
+                if (timeAndResources[i] < 0) {
+                    timeAndResources[i] = 0;
+                }
+            }
+        }
+
         double timePrediction = timeAndResources[0];
         double[] resourcePrediction = Arrays.copyOfRange(timeAndResources, 1, timeAndResources.length);
 
         return this.scheduler.schedule(callable, timePrediction, resourcePrediction, this.workerNodeAddresses.keySet());
     }
 
-    private <T> T executeOnSpecifiedWorker(InetSocketAddress chosenAddress, RemoteCallable<T> callable, CGroup cGroup)
-            throws IOException {
+    private <T> T executeOnSpecifiedWorker(InetSocketAddress chosenAddress, TaskPrediction<T> taskPrediction,
+                                           CGroup cGroup) throws IOException {
+
+        RemoteCallable<T> callable = taskPrediction.task;
         if (cGroup != null) {
             callable = this.wrapWithCGroup(callable, cGroup);
         }
@@ -153,12 +165,18 @@ public class LoadBalancer implements AutoCloseable {
             kryo.writeClassAndObject(out, callable);
             out.flush();
 
+            // Execution started
+            this.scheduler.started(taskPrediction);
+
             @SuppressWarnings("unchecked")
             T result = (T) kryo.readClassAndObject(in);
             return result;
 
         } catch (IOException e) {
             throw new IOException("Exception while executing on worker", e);
+        } finally {
+            // Execution finished (successfully or with an exception)
+            this.scheduler.finished(taskPrediction);
         }
     }
 
