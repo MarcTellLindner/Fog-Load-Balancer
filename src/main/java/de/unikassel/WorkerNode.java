@@ -11,6 +11,8 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * A node to execute tasks provided by a {@link LoadBalancer} over the network.
@@ -21,6 +23,7 @@ public class WorkerNode implements AutoCloseable {
     public static final int DEFAULT_RPC_PORT = 42043;
 
     private final ServerSocket serverSocket;
+    private final ExecutorService executorService;
 
 
     /**
@@ -28,18 +31,30 @@ public class WorkerNode implements AutoCloseable {
      *
      * @throws IOException In case the port is already in use.
      */
-    public WorkerNode () throws IOException {
+    public WorkerNode() throws IOException {
         this(DEFAULT_RPC_PORT);
     }
 
     /**
      * Create a new node to accept tasks on the specified port.
      *
-     * @param port The port to bind to.
+     * @param port           The port to bind to.
      * @throws IOException In case the port is already in use.
      */
     public WorkerNode(int port) throws IOException {
+        this(port, 64);
+    }
+
+    /**
+     * Create a new node to accept tasks on the specified port with a limited amount of threads.
+     *
+     * @param port           The port to bind to.
+     * @param maxThreadCount The maximal number of threads to run simultaneously.
+     * @throws IOException In case the port is already in use.
+     */
+    public WorkerNode(int port, int maxThreadCount) throws IOException {
         this.serverSocket = new ServerSocket(port);
+        this.executorService = Executors.newWorkStealingPool(maxThreadCount);
     }
 
     /**
@@ -51,7 +66,7 @@ public class WorkerNode implements AutoCloseable {
         for (Socket socket = serverSocket.accept(); socket != null; socket = serverSocket.accept()) {
             InputStream inputStream = socket.getInputStream();
             OutputStream outputStream = socket.getOutputStream();
-            new Thread(() -> {
+            this.executorService.submit(() -> {
                 try (
                         Input in = new Input(inputStream);
                         Output out = new Output(outputStream)
@@ -68,7 +83,7 @@ public class WorkerNode implements AutoCloseable {
                         out.flush();
                     }
                 }
-            }).start();
+            });
         }
     }
 

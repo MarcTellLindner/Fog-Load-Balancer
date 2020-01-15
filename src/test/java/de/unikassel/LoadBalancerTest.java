@@ -65,7 +65,8 @@ public class LoadBalancerTest {
         System.out.printf("Finished training:%n" +
                         "\t Input to task size predictor: %s%n" +
                         "\t Task site to resource predictor: %s%n%n",
-                trainer.getInputToTaskSizeFormula(), trainer.getInputToTaskSizeFormula());
+                trainer.getInputToTaskSizeFormula(),
+                trainer.getTaskSizeToResourceFormula());
 
 
         for (Scheduler scheduler : new Scheduler[]{basicScheduler, smartScheduler}) {
