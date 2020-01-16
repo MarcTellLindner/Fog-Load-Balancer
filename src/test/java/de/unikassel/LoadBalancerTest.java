@@ -16,31 +16,56 @@ import de.unikassel.schedule.SimpleScheduler;
 import de.unikassel.schedule.data.ScheduledFuture;
 import de.unikassel.schedule.data.WorkerResources;
 import de.unikassel.util.serialization.RemoteCallable;
+import org.junit.Assert;
 import org.junit.Test;
+import test.util.complex.encrypt.AES;
 import test.util.complex.sort.BubbleSort;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static de.unikassel.WorkerNode.DEFAULT_MONITORING_PORT;
 import static de.unikassel.WorkerNode.DEFAULT_RPC_PORT;
-import static org.junit.Assert.assertArrayEquals;
 
 public class LoadBalancerTest {
 
     @Test
     public void sortingTest() throws IOException, InterruptedException {
-        int trainingExamples = 500;
-        int testingExamples = 1_000;
+        System.out.println("Sorting test");
+        test((i, l) -> (() -> new BubbleSort().doSomethingComplex(i, l)),
+                toTest -> {
+                    long[] sorted = toTest.clone();
+                    Arrays.sort(sorted);
+                    return Arrays.equals(toTest, sorted);
+                });
+    }
+
+    @Test
+    public void encryptionTest() throws IOException, InterruptedException {
+        System.out.println("Encryption test");
+        test((i, l) -> (() -> new AES().doSomethingComplex(i, l)),
+                toTest -> true);
+    }
+
+    @FunctionalInterface
+    private interface TaskGenerator<T> {
+        RemoteCallable<T> generate(int val1, long val2);
+    }
+
+    private <T> void test(TaskGenerator<T> generator, Predicate<T> test) throws IOException, InterruptedException {
+        int trainingExamples = 250;
+        int testingExamples = 250;
         int minLength = 30_000;
-        int maxLength = 40_000;
+        int maxLength = 35_000;
         long minSize = 30_000L;
         long maxSize = 40_000L;
 
-        int deltaLength = maxLength - minLength;
-        long deltaSize = maxSize - minSize;
+//        int deltaLength = maxLength - minLength;
+//        long deltaSize = maxSize - minSize;
 
         Random random = new Random();
         PrimitiveIterator.OfInt lengths = random.ints(minLength, maxLength).iterator();
@@ -49,9 +74,11 @@ public class LoadBalancerTest {
         RemoteCallable<?>[] trainingCalls = new RemoteCallable<?>[trainingExamples];
         double[][] trainingValues = new double[trainingExamples][];
         for (int i = 0; i < trainingExamples; ++i) {
-            final int length = i * deltaLength / trainingExamples + minLength;
-            final long size = i * deltaSize / trainingExamples + minSize;
-            trainingCalls[i] = () -> new BubbleSort().doSomethingComplex(length, size);
+//            final int length = i * deltaLength / trainingExamples + minLength;
+//            final long size = i * deltaSize / trainingExamples + minSize;
+            final int length = lengths.nextInt();
+            final long size = sizes.nextLong();
+            trainingCalls[i] = generator.generate(length, size);
             trainingValues[i] = new double[]{length, size};
         }
 
@@ -79,70 +106,34 @@ public class LoadBalancerTest {
                         new InetSocketAddress(System.getenv("worker"), DEFAULT_RPC_PORT),
                         System.getenv("password"));
 
-                List<ScheduledFuture<long[]>> futures = new ArrayList<>();
+                List<ScheduledFuture<T>> futures = new ArrayList<>();
 
                 long tStart = System.currentTimeMillis();
                 for (int i = 0; i < testingExamples; ++i) {
                     final int length = lengths.nextInt();
-                    final long size = length;// sizes.nextLong();
+                    final long size = sizes.nextLong();
 
-                    futures.add(loadBalancer.executeOnWorker((RemoteCallable<long[]>)
-                            () -> new BubbleSort().doSomethingComplex(length, size), length, size
+                    futures.add(loadBalancer.executeOnWorker(generator.generate(length, size), length, size
                     ));
 
                     Thread.sleep(10);
                 }
 
-                long[][] longs = futures.stream().map(f -> {
+                List<T> results = futures.stream().map(f -> {
                     try {
                         return f.get();
                     } catch (InterruptedException | ExecutionException e) {
                         throw new RuntimeException(e);
                     }
-                }).toArray(long[][]::new);
+                }).collect(Collectors.toList());
 
                 System.out.printf("Time: %.2f seconds%n", (System.currentTimeMillis() - tStart) / 1_000.);
-                for (long[] array : longs) {
-                    long[] clonedArray = array.clone();
-                    Arrays.sort(clonedArray);
-                    assertArrayEquals(clonedArray, array);
+                for (T result : results) {
+                    Assert.assertTrue(test.test(result));
                 }
             }
         }
     }
-
-    //    @Test
-//    public void encryptionTest() throws IOException, ExecutionException, InterruptedException {
-//        int trainingExamples = 100;
-//
-//        RemoteCallable<?>[] trainingCalls = new RemoteCallable<?>[trainingExamples];
-//        double[][] trainingValues = new double[trainingExamples][1];
-//        for (int i = 0; i < trainingExamples; ++i) {
-//            final int size = (i + 1) * 10;
-//            trainingCalls[i] = () -> new AES().doSomethingComplex(size, size);
-//            trainingValues[i][0] = size;
-//        }
-//
-//        Trainer trainer = createTrainer(trainingCalls, trainingValues);
-//
-//        Scheduler scheduler = createScheduler();
-//
-//        CGroupBuilder cGroupBuilder = createCGroupBuilder();
-//
-//        try (
-//                LoadBalancer loadBalancer = new LoadBalancer(scheduler,
-//                        trainer.getInputToTaskSizePredictor(), trainer.getTaskSizeToResourcePredictor(),
-//                        cGroupBuilder)
-//        ) {
-//            loadBalancer.addWorkerNodeAddress(
-//                    new InetSocketAddress(System.getenv("worker"), DEFAULT_RPC_PORT),
-//                    System.getenv("password"));
-//            byte[] result = loadBalancer.executeOnWorker(
-//                    () -> new AES().doSomethingComplex(500, 500L), 500
-//            ).get();
-//        }
-//
-//    }
 
     private Trainer createTrainer(RemoteCallable<?>[] trainingCalls, double[][] trainingValues) throws IOException {
         Trainer trainer = new Trainer(trainingCalls, trainingValues);
