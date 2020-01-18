@@ -34,8 +34,8 @@ public class MetricsGetter {
             try {
                 MetricsParser parser = new MetricsParser();
                 while (!Thread.currentThread().isInterrupted()) {
-                    threadData.add(parser.parse(get()));
                     try {
+                        threadData.add(parser.parse(get()));
                         Thread.sleep(frequency);
                     } catch (InterruptedException ignored) {
                         break; // The thread was interrupted while waiting => Stop the loop

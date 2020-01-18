@@ -44,7 +44,7 @@ public class LoadBalancerTest {
                 });
     }
 
-    @Test
+    //    @Test
     public void encryptionTest() throws IOException, InterruptedException {
         System.out.println("Encryption test");
         test((i, l) -> (() -> new AES().doSomethingComplex(i, l)),
@@ -58,14 +58,11 @@ public class LoadBalancerTest {
 
     private <T> void test(TaskGenerator<T> generator, Predicate<T> test) throws IOException, InterruptedException {
         int trainingExamples = 250;
-        int testingExamples = 250;
-        int minLength = 30_000;
-        int maxLength = 35_000;
+        int testingExamples = 25;
+        int minLength = 3_000;
+        int maxLength = 3_500;
         long minSize = 30_000L;
         long maxSize = 40_000L;
-
-//        int deltaLength = maxLength - minLength;
-//        long deltaSize = maxSize - minSize;
 
         Random random = new Random();
         PrimitiveIterator.OfInt lengths = random.ints(minLength, maxLength).iterator();
@@ -74,8 +71,6 @@ public class LoadBalancerTest {
         RemoteCallable<?>[] trainingCalls = new RemoteCallable<?>[trainingExamples];
         double[][] trainingValues = new double[trainingExamples][];
         for (int i = 0; i < trainingExamples; ++i) {
-//            final int length = i * deltaLength / trainingExamples + minLength;
-//            final long size = i * deltaSize / trainingExamples + minSize;
             final int length = lengths.nextInt();
             final long size = sizes.nextLong();
             trainingCalls[i] = generator.generate(length, size);
@@ -90,10 +85,10 @@ public class LoadBalancerTest {
         CGroupBuilder cGroupBuilder = createCGroupBuilder();
 
         System.out.printf("Finished training:%n" +
-                        "\t Input to task size predictor: %s%n" +
-                        "\t Task site to resource predictor: %s%n%n",
+                        "\t Input to task size predictor:%n %s%n" +
+                        "\t Task site to resource predictor:%n %s%n%n",
                 trainer.getInputToTaskSizeFormula(),
-                trainer.getTaskSizeToResourceFormula());
+                Arrays.toString(trainer.getTaskSizeToResourceFormula()));
 
 
         for (Scheduler scheduler : new Scheduler[]{basicScheduler, smartScheduler}) {
@@ -155,7 +150,6 @@ public class LoadBalancerTest {
                 // 1. - used
                 double cpuFree = parser.getMax(MetricType.PROCESS_CPU_USAGE, metrics, true)
                         .map(m -> 1. - m.value).orElseThrow(IOException::new);
-                cpuFree *= 0.75; // Just to be safe
 
                 // Max - used
                 double memFree = parser.getMax(MetricType.JVM_MEMORY_MAX, metrics, true)
@@ -163,7 +157,6 @@ public class LoadBalancerTest {
                         -
                         parser.getMax(MetricType.JVM_MEMORY_USED, metrics, true)
                                 .map(m -> m.value).orElseThrow(IOException::new);
-                memFree *= 0.75; // Just to be safe
 
                 double[] freeResources = {cpuFree, memFree};
                 return new WorkerResources(System.nanoTime(), worker, freeResources, null);
@@ -175,9 +168,11 @@ public class LoadBalancerTest {
     }
 
     private CGroupBuilder createCGroupBuilder() {
-        return predictions ->
-                new CGroup(String.format("CG%d", Arrays.hashCode(predictions)), Controller.CPU, Controller.MEMORY)
-                        .withOption(Cpu.SHARES, (int) (predictions[0] * 1024 * 1.25))     // Allow 25% more
-                        .withOption(Memory.LIMIT_IN_BYTES, (int) (predictions[1] * 1.25));// than predicted
+        return predictions -> {
+            System.out.println("Predictions: " + Arrays.toString(predictions));
+            return new CGroup(String.format("CG%d", Arrays.hashCode(predictions)), Controller.CPU, Controller.MEMORY)
+                    .withOption(Cpu.SHARES, (int) (predictions[0] * 1024))
+                    .withOption(Memory.LIMIT_IN_BYTES, (int) (predictions[1]));
+        };
     }
 }

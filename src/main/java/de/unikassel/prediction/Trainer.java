@@ -28,10 +28,10 @@ public class Trainer {
     private final LinkedHashMap<MetricType, ArrayList<Double>> metrics;
     private final ArrayList<double[]> relevantTrainingValues;
 
-    private String inputToTaskSizeFormula;
+    private TrainingResult inputToTaskSizeFormula;
     private Predictor inputToTaskSizePredictor;
 
-    private String taskSizeToResourceFormula;
+    private TrainingResult[] taskSizeToResourceFormula;
     private Predictor taskSizeToResourcePredictor;
 
     public Trainer(RemoteCallable<?>[] trainingCalls, double[][] trainingValues) {
@@ -145,20 +145,43 @@ public class Trainer {
                 ).toArray(double[][]::new);
 
         this.inputToTaskSizeFormula = PyEarth.trainEarthModel(values, scores);
-        this.inputToTaskSizePredictor = PyEarth.compilePredictor(this.inputToTaskSizeFormula);
+        this.inputToTaskSizePredictor = PyEarth.compilePredictor(0, this.inputToTaskSizeFormula);
 
-        this.taskSizeToResourceFormula = PyEarth.trainEarthModel(scores, resources);
-        this.taskSizeToResourcePredictor = PyEarth.compilePredictor(this.taskSizeToResourceFormula);
+
+        TrainingResult[] resourceFormulas = new TrainingResult[resources[0].length];
+
+        // Train the remote time and different resource predictors separately
+        for(int i = 0; i < resources[0].length; ++i) {
+            resourceFormulas[i] = PyEarth.trainEarthModel(scores, sliceVertically(resources, i),
+                    (i == 0 ? "Time" : "Resource_" + i));
+        }
+        this.taskSizeToResourceFormula = resourceFormulas;
+        this.taskSizeToResourcePredictor = PyEarth.compilePredictor(3, this.taskSizeToResourceFormula);
 
         return this;
+    }
+
+    public static class TrainingResult {
+        public final String formula;
+        public final double rootMeanSquaredError;
+
+        public TrainingResult(String formula, double rootMeanSquaredError) {
+            this.formula = formula;
+            this.rootMeanSquaredError = rootMeanSquaredError;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Formula:\t%s%nRMSE:\t%f%n", this.formula, this.rootMeanSquaredError);
+        }
     }
 
     /**
      * Get the inputToTaskSizeFormula, if the {@link Trainer#train()}-method has already been called. Null otherwise.
      *
-     * @return The formula to predict the task size or null.
+     * @return The formula to predict the task size as a {@link TrainingResult} or null.
      */
-    public String getInputToTaskSizeFormula() {
+    public TrainingResult getInputToTaskSizeFormula() {
         return inputToTaskSizeFormula;
     }
 
@@ -174,9 +197,9 @@ public class Trainer {
     /**
      * Get the taskSizeToResourceFormula, if the {@link Trainer#train()}-method has already been called. Null otherwise.
      *
-     * @return The formula to predict the resources or null.
+     * @return The formula to predict the resources as an arrays of {@link TrainingResult}s or null.
      */
-    public String getTaskSizeToResourceFormula() {
+    public TrainingResult[] getTaskSizeToResourceFormula() {
         return taskSizeToResourceFormula;
     }
 
@@ -187,5 +210,13 @@ public class Trainer {
      */
     public Predictor getTaskSizeToResourcePredictor() {
         return taskSizeToResourcePredictor;
+    }
+
+    private double[][] sliceVertically(double[][] array, int column) {
+        double[][] slice = new double[array.length][1];
+        for (int i = 0; i < array.length; ++i) {
+            slice[i][0] = array[i][column];
+        }
+        return slice;
     }
 }

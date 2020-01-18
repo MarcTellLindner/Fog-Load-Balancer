@@ -1,4 +1,6 @@
-import sys, sympy, numpy as np
+import sys, os, sympy, math
+import numpy as np
+import matplotlib.pyplot as pypl
 from pyearth import Earth, export
 
 X_str = sys.argv[1]
@@ -14,3 +16,20 @@ sympy_format = export.export_sympy(model)
 
 # Print as C-Code, because Java is not available
 sympy.printing.print_ccode(sympy_format, standard='C89')
+
+# Print RMSE
+print(math.sqrt(model.mse_))
+
+if len(sys.argv) > 3: 
+	name = sys.argv[3]
+	pypl.title(name)
+
+	x_vals = np.arange(min(X), max(X) + 1)
+	y_vals = model.predict(x_vals[:, None])
+	pypl.plot(x_vals, y_vals)
+	x_input = np.concatenate(X)
+	y_input = np.concatenate(y)
+	pypl.scatter(X, y)
+	if not os.path.isdir('figs'):
+		os.makedirs('figs')
+	pypl.savefig('figs/' + name + '.png')
