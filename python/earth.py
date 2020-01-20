@@ -23,8 +23,13 @@ print(math.sqrt(model.mse_))
 if len(sys.argv) > 3: 
 	name = sys.argv[3]
 	pypl.title(name)
-
-	x_vals = np.arange(min(X), max(X) + 1)
+	
+	start = min(X)
+	stop = max(X)
+	step = (stop - start) / 100
+	stop += step
+	
+	x_vals = np.arange(start, stop, step)
 	y_vals = model.predict(x_vals[:, None])
 	pypl.plot(x_vals, y_vals)
 	x_input = np.concatenate(X)

@@ -15,10 +15,10 @@ import java.util.Random;
 public class AES implements SomethingComplex<byte[]> {
 
     @Override
-    public byte[] doSomethingComplex(int howOften, long howBig) {
+    public byte[] doSomethingComplex(int intVal, long longVal) {
         try {
-            if(howBig > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException("howBig was too big");
+            if(longVal > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("longVal was too big");
             }
 
             SecretKeySpec key = generateKey();
@@ -26,10 +26,10 @@ public class AES implements SomethingComplex<byte[]> {
             Cipher cipher = setupCipher(key, inVec);
 
 
-            byte[] rand = new byte[(int) howBig];
+            byte[] rand = new byte[(int) longVal];
             new Random().nextBytes(rand);
 
-            for(int i = 0; i < howOften; ++i) {
+            for(int i = 0; i < intVal; ++i) {
                 rand = cipher.doFinal(rand);
             }
 

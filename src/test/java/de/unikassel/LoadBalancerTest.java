@@ -16,39 +16,75 @@ import de.unikassel.schedule.SimpleScheduler;
 import de.unikassel.schedule.data.ScheduledFuture;
 import de.unikassel.schedule.data.WorkerResources;
 import de.unikassel.util.serialization.RemoteCallable;
-import org.junit.Assert;
 import org.junit.Test;
 import test.util.complex.encrypt.AES;
 import test.util.complex.sort.BubbleSort;
+import test.util.complex.wait.WaitWithMemory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static de.unikassel.WorkerNode.DEFAULT_MONITORING_PORT;
 import static de.unikassel.WorkerNode.DEFAULT_RPC_PORT;
 
 public class LoadBalancerTest {
 
+    private Random random = new Random();
+
     @Test
     public void sortingTest() throws IOException, InterruptedException {
         System.out.println("Sorting test");
-        test((i, l) -> (() -> new BubbleSort().doSomethingComplex(i, l)),
-                toTest -> {
-                    long[] sorted = toTest.clone();
-                    Arrays.sort(sorted);
-                    return Arrays.equals(toTest, sorted);
-                });
+
+        TaskGenerator<long[]> generator = (i, l) -> (() -> new BubbleSort().doSomethingComplex(i, l));
+
+        PrimitiveIterator.OfInt ints = random.ints(10_000, 25_000).iterator();
+        PrimitiveIterator.OfLong longs = random.longs(0, 100).iterator();
+
+        test(
+                generator,
+                ints,
+                longs,
+                250,
+                50
+        );
     }
 
-    //    @Test
+    @Test
     public void encryptionTest() throws IOException, InterruptedException {
         System.out.println("Encryption test");
-        test((i, l) -> (() -> new AES().doSomethingComplex(i, l)),
-                toTest -> true);
+
+        TaskGenerator<byte[]> generator = (i, l) -> (() -> new AES().doSomethingComplex(i, l));
+
+        PrimitiveIterator.OfInt ints = random.ints(10, 1_000).iterator();
+        PrimitiveIterator.OfLong longs = random.longs(1_000, 1_000_000).iterator();
+
+        test(
+                generator,
+                ints,
+                longs,
+                250,
+                50
+        );
+    }
+
+    @Test
+    public void waitWithMemoryTest() throws IOException, InterruptedException {
+        System.out.println("Wait with memory test");
+
+        TaskGenerator<Long> generator = (i, l) -> (() -> new WaitWithMemory().doSomethingComplex(i, l));
+
+        PrimitiveIterator.OfInt ints = random.ints(1, 2_500).iterator();
+        PrimitiveIterator.OfLong longs = random.longs(0, 1).iterator(); // Is ignored
+
+        test(
+                generator,
+                ints,
+                longs,
+                250,
+                50
+        );
     }
 
     @FunctionalInterface
@@ -56,25 +92,16 @@ public class LoadBalancerTest {
         RemoteCallable<T> generate(int val1, long val2);
     }
 
-    private <T> void test(TaskGenerator<T> generator, Predicate<T> test) throws IOException, InterruptedException {
-        int trainingExamples = 250;
-        int testingExamples = 25;
-        int minLength = 3_000;
-        int maxLength = 3_500;
-        long minSize = 30_000L;
-        long maxSize = 40_000L;
+    private <T> void test(TaskGenerator<T> generator, PrimitiveIterator.OfInt ints, PrimitiveIterator.OfLong longs,
+                          int nTraining, int nEvaluation) throws IOException, InterruptedException {
 
-        Random random = new Random();
-        PrimitiveIterator.OfInt lengths = random.ints(minLength, maxLength).iterator();
-        PrimitiveIterator.OfLong sizes = random.longs(minSize, maxSize).iterator();
-
-        RemoteCallable<?>[] trainingCalls = new RemoteCallable<?>[trainingExamples];
-        double[][] trainingValues = new double[trainingExamples][];
-        for (int i = 0; i < trainingExamples; ++i) {
-            final int length = lengths.nextInt();
-            final long size = sizes.nextLong();
-            trainingCalls[i] = generator.generate(length, size);
-            trainingValues[i] = new double[]{length, size};
+        RemoteCallable<?>[] trainingCalls = new RemoteCallable<?>[nTraining];
+        double[][] trainingValues = new double[nTraining][];
+        for (int i = 0; i < nTraining; ++i) {
+            final int intVal = ints.nextInt();
+            final long longVal = longs.nextLong();
+            trainingCalls[i] = generator.generate(intVal, longVal);
+            trainingValues[i] = new double[]{intVal, longVal};
         }
 
         Trainer trainer = createTrainer(trainingCalls, trainingValues);
@@ -84,9 +111,10 @@ public class LoadBalancerTest {
 
         CGroupBuilder cGroupBuilder = createCGroupBuilder();
 
-        System.out.printf("Finished training:%n" +
+        System.out.printf("Finished training: (id = %d)%n" +
                         "\t Input to task size predictor:%n %s%n" +
                         "\t Task site to resource predictor:%n %s%n%n",
+                trainer.hashCode(),
                 trainer.getInputToTaskSizeFormula(),
                 Arrays.toString(trainer.getTaskSizeToResourceFormula()));
 
@@ -104,28 +132,25 @@ public class LoadBalancerTest {
                 List<ScheduledFuture<T>> futures = new ArrayList<>();
 
                 long tStart = System.currentTimeMillis();
-                for (int i = 0; i < testingExamples; ++i) {
-                    final int length = lengths.nextInt();
-                    final long size = sizes.nextLong();
+                for (int i = 0; i < nEvaluation; ++i) {
+                    final int intVal = ints.nextInt();
+                    final long longVal = longs.nextLong();
 
-                    futures.add(loadBalancer.executeOnWorker(generator.generate(length, size), length, size
+                    futures.add(loadBalancer.executeOnWorker(generator.generate(intVal, longVal), intVal, longVal
                     ));
 
                     Thread.sleep(10);
                 }
 
-                List<T> results = futures.stream().map(f -> {
+                futures.forEach(f -> {
                     try {
-                        return f.get();
+                        f.get();
                     } catch (InterruptedException | ExecutionException e) {
                         throw new RuntimeException(e);
                     }
-                }).collect(Collectors.toList());
+                });
 
                 System.out.printf("Time: %.2f seconds%n", (System.currentTimeMillis() - tStart) / 1_000.);
-                for (T result : results) {
-                    Assert.assertTrue(test.test(result));
-                }
             }
         }
     }
@@ -169,7 +194,7 @@ public class LoadBalancerTest {
 
     private CGroupBuilder createCGroupBuilder() {
         return predictions -> {
-            System.out.println("Predictions: " + Arrays.toString(predictions));
+//            System.out.println("Predictions: " + Arrays.toString(predictions));
             return new CGroup(String.format("CG%d", Arrays.hashCode(predictions)), Controller.CPU, Controller.MEMORY)
                     .withOption(Cpu.SHARES, (int) (predictions[0] * 1024))
                     .withOption(Memory.LIMIT_IN_BYTES, (int) (predictions[1]));

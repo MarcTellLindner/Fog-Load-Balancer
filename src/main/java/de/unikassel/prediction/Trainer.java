@@ -151,9 +151,9 @@ public class Trainer {
         TrainingResult[] resourceFormulas = new TrainingResult[resources[0].length];
 
         // Train the remote time and different resource predictors separately
-        for(int i = 0; i < resources[0].length; ++i) {
+        for (int i = 0; i < resources[0].length; ++i) {
             resourceFormulas[i] = PyEarth.trainEarthModel(scores, sliceVertically(resources, i),
-                    (i == 0 ? "Time" : "Resource_" + i));
+                    this.hashCode() + "__" + (i == 0 ? "Time" : "Resource_" + i));
         }
         this.taskSizeToResourceFormula = resourceFormulas;
         this.taskSizeToResourcePredictor = PyEarth.compilePredictor(3, this.taskSizeToResourceFormula);

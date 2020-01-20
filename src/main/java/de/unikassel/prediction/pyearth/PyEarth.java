@@ -32,7 +32,7 @@ public class PyEarth {
     public static Trainer.TrainingResult trainEarthModel(double[][] x, double[][] y, Object... plot)
             throws IOException {
         Shell shell = new Shell();
-        shell.addShellCommand(new ShellCommand("python3 python/earth.py", false).withArgs(
+        ShellCommand shellCommand = new ShellCommand("python3 python/earth.py", false).withArgs(
                 Arrays.stream(x).map(row ->
                         Arrays.stream(row)
                                 .mapToObj(Objects::toString)
@@ -44,9 +44,14 @@ public class PyEarth {
                                 .mapToObj(Objects::toString)
                                 .collect(Collectors.joining(",")))
                         .collect(Collectors.joining(";", "\"", "\""))
-        ).withArgs(plot));
+        ).withArgs(plot);
+        shell.addShellCommand(shellCommand);
         ShellResult result = shell.execute();
         if (result.exitVal != 0) {
+            System.out.println(shellCommand);
+            System.out.println();
+            System.out.println(result);
+            System.out.println();
             throw new IOException("Exception while training model: " + String.join("\n", result.err));
         }
 

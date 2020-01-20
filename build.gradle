@@ -6,6 +6,9 @@ group 'de.unikassel.rtr'
 version '1.0-SNAPSHOT'
 
 sourceCompatibility = 1.8
+tasks.withType(Test) {
+    jvmArgs = ['-Xms2G', '-Xmx4G']
+}
 
 repositories {
     mavenCentral()

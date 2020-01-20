@@ -7,8 +7,8 @@ import java.util.stream.LongStream;
 public class BubbleSort implements SomethingComplex<long[]> {
 
     @Override
-    public long[] doSomethingComplex(int howOften, long howBig) {
-        long[] values = LongStream.generate(() -> (long) (Math.random() * howBig)).limit(howOften).toArray();
+    public long[] doSomethingComplex(int intVal, long longVal) {
+        long[] values = LongStream.generate(() -> (long) (Math.random() * longVal)).limit(intVal).toArray();
         sort(values);
         return values;
     }
