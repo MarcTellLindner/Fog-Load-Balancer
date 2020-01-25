@@ -78,7 +78,11 @@ public class Trainer {
 
         for (int i = 0; i < this.trainingCalls.length; ++i) {
 
-            RemoteCallable<?> remoteCallable = this.trainingCalls[i];
+            RemoteCallable<?> innerCallable = this.trainingCalls[i];
+            RemoteCallable<?> remoteCallable = () -> {
+              System.gc(); // Try to free up some memory
+              return innerCallable.call();
+            };
             double[] value = this.trainingValues[i];
 
             // Call locally and measure time:

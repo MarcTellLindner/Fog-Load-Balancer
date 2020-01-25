@@ -154,7 +154,7 @@ public class LoadBalancer implements AutoCloseable {
 
         RemoteCallable<T> callable = taskPrediction.task;
         if (cGroup != null) {
-            callable = this.wrapWithCGroup(callable, cGroup);
+            callable = this.wrapWithCGroup(callable, cGroup, workerNodeAddresses.get(chosenAddress));
         }
         try (
                 Socket worker = new Socket(chosenAddress.getAddress(), chosenAddress.getPort());
@@ -180,18 +180,40 @@ public class LoadBalancer implements AutoCloseable {
         }
     }
 
-    private <T> RemoteCallable<T> wrapWithCGroup(RemoteCallable<T> callable, CGroup cGroup) {
-        return () -> {
-            cGroup.create("");
-            cGroup.classify("");
-            T result = callable.call();
-            cGroup.delete("");
-            return result;
-        };
+    private <T> RemoteCallable<T> wrapWithCGroup(RemoteCallable<T> callable, CGroup cGroup, String sudoPW) {
+        return new WrappedCallable<>(callable, cGroup, sudoPW);
     }
 
     @Override
     public synchronized void close() {
         this.executorService.shutdown();
+    }
+
+    private static class WrappedCallable<T> implements RemoteCallable<T> {
+
+        private final RemoteCallable<T> innerCallable;
+        private final CGroup innerCGroup;
+        private final String innerSudoPW;
+
+        private WrappedCallable(RemoteCallable<T> innerCallable, CGroup innerCGroup, String innerSudoPW) {
+            this.innerCallable = innerCallable;
+            this.innerCGroup = innerCGroup;
+            this.innerSudoPW = innerSudoPW;
+        }
+
+        @Override
+        public T call() throws Exception {
+            return innerCallable.call();
+        }
+
+        @Override
+        public CGroup getCGroup() {
+            return innerCGroup;
+        }
+
+        @Override
+        public String sudoPW() {
+            return innerSudoPW;
+        }
     }
 }

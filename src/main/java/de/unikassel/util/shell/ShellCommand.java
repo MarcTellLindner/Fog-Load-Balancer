@@ -48,7 +48,9 @@ public class ShellCommand {
      * @return The shell command this method was called on.
      */
     public ShellCommand withArgs(List<Object> args) {
-        this.args.addAll(args.stream().map(Objects::toString).collect(Collectors.toList()));
+        for (Object arg : args) {
+            this.args.add(Objects.toString(arg));
+        }
         return this;
     }
 

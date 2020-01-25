@@ -7,6 +7,9 @@ import de.unikassel.util.shell.ShellResult;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.security.AllPermission;
+import java.security.PermissionCollection;
+import java.security.Permissions;
 
 import static org.junit.Assert.assertEquals;
 
@@ -28,7 +31,9 @@ public class WorkerNodeTest {
         try (
                 WorkerNode workerNode = new WorkerNode()
         ) {
-            workerNode.start();
+            PermissionCollection permissions = new Permissions();
+            permissions.add(new AllPermission()); // Allow everything while testing
+            workerNode.start(permissions);
         } catch (IOException e) {
             e.printStackTrace();
         }

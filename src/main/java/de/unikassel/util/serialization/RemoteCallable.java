@@ -1,5 +1,7 @@
 package de.unikassel.util.serialization;
 
+import de.unikassel.cgroup.CGroup;
+
 import java.io.Serializable;
 import java.util.concurrent.Callable;
 
@@ -17,5 +19,13 @@ public interface RemoteCallable<T> extends Callable<T>, Serializable {
 
     @Override
     T call() throws Exception;
+
+    default CGroup getCGroup() {
+        return null;
+    }
+
+    default String sudoPW() {
+        return "";
+    }
 
 }

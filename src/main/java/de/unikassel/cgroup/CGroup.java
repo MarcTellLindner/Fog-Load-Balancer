@@ -166,7 +166,14 @@ public class CGroup {
     }
 
     private String qualifyName(Collection<Controller> controllers, String name) {
-        return String.format("%s:%s", controllers.stream().map(Objects::toString)
-                .collect(Collectors.joining(",")), name);
+        StringBuilder sb = new StringBuilder();
+        for (Iterator<Controller> iter = controllers.iterator(); iter.hasNext();) {
+            Controller ctrl = iter.next();
+            sb.append(ctrl);
+            if (iter.hasNext()) {
+                sb.append(",");
+            }
+        }
+        return String.format("%s:%s", sb, name);
     }
 }

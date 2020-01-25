@@ -113,7 +113,7 @@ public class LoadBalancerTest {
 
         System.out.printf("Finished training: (id = %d)%n" +
                         "\t Input to task size predictor:%n %s%n" +
-                        "\t Task site to resource predictor:%n %s%n%n",
+                        "\t Task size to resource predictor:%n %s%n%n",
                 trainer.hashCode(),
                 trainer.getInputToTaskSizeFormula(),
                 Arrays.toString(trainer.getTaskSizeToResourceFormula()));
