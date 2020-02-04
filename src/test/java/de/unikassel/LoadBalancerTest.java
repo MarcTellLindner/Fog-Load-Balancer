@@ -46,8 +46,8 @@ public class LoadBalancerTest {
                 generator,
                 ints,
                 longs,
-                250,
-                50
+                1_000,
+                10, 50, 250, 1_000
         );
     }
 
@@ -64,8 +64,8 @@ public class LoadBalancerTest {
                 generator,
                 ints,
                 longs,
-                250,
-                50
+                1_000,
+                10, 50, 250, 1_000
         );
     }
 
@@ -82,8 +82,8 @@ public class LoadBalancerTest {
                 generator,
                 ints,
                 longs,
-                250,
-                50
+                1_000,
+                10, 50, 250, 1_000
         );
     }
 
@@ -93,7 +93,7 @@ public class LoadBalancerTest {
     }
 
     private <T> void test(TaskGenerator<T> generator, PrimitiveIterator.OfInt ints, PrimitiveIterator.OfLong longs,
-                          int nTraining, int nEvaluation) throws IOException, InterruptedException {
+                          int nTraining, int... nEvaluations) throws IOException, InterruptedException {
 
         RemoteCallable<?>[] trainingCalls = new RemoteCallable<?>[nTraining];
         double[][] trainingValues = new double[nTraining][];
@@ -119,39 +119,52 @@ public class LoadBalancerTest {
                 Arrays.toString(trainer.getTaskSizeToResourceFormula()));
 
 
-        for (Scheduler scheduler : new Scheduler[]{basicScheduler, smartScheduler}) {
-            try (
-                    LoadBalancer loadBalancer = new LoadBalancer(scheduler,
-                            trainer.getInputToTaskSizePredictor(), trainer.getTaskSizeToResourcePredictor(),
-                            cGroupBuilder)
-            ) {
-                loadBalancer.addWorkerNodeAddress(
-                        new InetSocketAddress(System.getenv("worker"), DEFAULT_RPC_PORT),
-                        System.getenv("password"));
+        for (int nEvaluation : nEvaluations) {
+            System.out.printf("n = %d%n", nEvaluation);
+            for (Scheduler scheduler : new Scheduler[]{basicScheduler, smartScheduler}) {
+                int exceptions = 0;
+                try (
+                        LoadBalancer loadBalancer = new LoadBalancer(scheduler,
+                                trainer.getInputToTaskSizePredictor(), trainer.getTaskSizeToResourcePredictor(),
+                                cGroupBuilder)
+                ) {
+                    loadBalancer.addWorkerNodeAddress(
+                            new InetSocketAddress(System.getenv("worker"), DEFAULT_RPC_PORT),
+                            System.getenv("password"));
 
-                List<ScheduledFuture<T>> futures = new ArrayList<>();
+                    List<ScheduledFuture<T>> futures = new ArrayList<>();
 
-                long tStart = System.currentTimeMillis();
-                for (int i = 0; i < nEvaluation; ++i) {
-                    final int intVal = ints.nextInt();
-                    final long longVal = longs.nextLong();
+                    long tStart = System.currentTimeMillis();
+                    for (int i = 0; i < nEvaluation; ++i) {
+                        final int intVal = ints.nextInt();
+                        final long longVal = longs.nextLong();
 
-                    futures.add(loadBalancer.executeOnWorker(generator.generate(intVal, longVal), intVal, longVal
-                    ));
+                        try {
+                            futures.add(loadBalancer.executeOnWorker(
+                                    generator.generate(intVal, longVal), intVal, longVal)
+                            );
+                        } catch (IOException e) {
+                            ++exceptions;
+                        }
 
-                    Thread.sleep(10);
-                }
-
-                futures.forEach(f -> {
-                    try {
-                        f.get();
-                    } catch (InterruptedException | ExecutionException e) {
-                        throw new RuntimeException(e);
+                        Thread.sleep(10);
                     }
-                });
+                    for (ScheduledFuture<T> future : futures) {
+                        try {
+                            future.get();
+                        } catch (InterruptedException | ExecutionException e) {
+                            ++exceptions;
+                        }
 
-                System.out.printf("Time: %.2f seconds%n", (System.currentTimeMillis() - tStart) / 1_000.);
+                    }
+
+                    System.out.printf("Time: %.2f seconds%s%n",
+                            (System.currentTimeMillis() - tStart) / 1_000.,
+                            exceptions == 0 ? "" : String.format(" (%d exceptions)", exceptions)
+                    );
+                }
             }
+            System.out.println();
         }
     }
 
