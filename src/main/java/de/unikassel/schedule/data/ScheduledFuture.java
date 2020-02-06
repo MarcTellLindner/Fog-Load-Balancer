@@ -10,13 +10,20 @@ public class ScheduledFuture <T> implements Future<T> {
     private final Future<T> innerFuture;
     private final TaskPrediction<T> taskPrediction;
 
-    public ScheduledFuture(Future<T> innerFuture, TaskPrediction<T> taskPrediction) {
+    private final ExecutionTimes executionTimes;
+
+    public ScheduledFuture(Future<T> innerFuture, TaskPrediction<T> taskPrediction, ExecutionTimes executionTimes) {
         this.innerFuture = innerFuture;
         this.taskPrediction = taskPrediction;
+        this.executionTimes = executionTimes;
     }
 
     public TaskPrediction<T> getTaskPrediction() {
         return taskPrediction;
+    }
+
+    public ExecutionTimes getExecutionTimes() {
+        return executionTimes;
     }
 
     @Override
@@ -43,4 +50,5 @@ public class ScheduledFuture <T> implements Future<T> {
     public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
         return innerFuture.get(timeout, unit);
     }
+
 }

@@ -8,6 +8,7 @@ import de.unikassel.cgroup.CGroupBuilder;
 import de.unikassel.prediction.pyearth.Predictor;
 import de.unikassel.schedule.Scheduler;
 import de.unikassel.schedule.SimpleScheduler;
+import de.unikassel.schedule.data.ExecutionTimes;
 import de.unikassel.schedule.data.ScheduledFuture;
 import de.unikassel.schedule.data.TaskPrediction;
 import de.unikassel.util.serialization.RemoteCallable;
@@ -33,8 +34,6 @@ public class LoadBalancer implements AutoCloseable {
 
     private final ExecutorService executorService;
     private final HashMap<TaskPrediction<?>, HashSet<RunnableFuture<?>>> waiting;
-
-
     /**
      * Create a new {@link LoadBalancer} without predictors.
      */
@@ -93,6 +92,10 @@ public class LoadBalancer implements AutoCloseable {
      */
     public synchronized <T> ScheduledFuture<T> executeOnWorker(RemoteCallable<T> callable, double... input)
             throws IOException {
+
+        ExecutionTimes executionTimes = new ExecutionTimes();
+        executionTimes.entered();
+
         TaskPrediction<T> taskPrediction = scheduleTask(callable, input);
         if (taskPrediction == null) {
             throw new IOException("Could not schedule task!");
@@ -105,7 +108,7 @@ public class LoadBalancer implements AutoCloseable {
         RunnableFuture<T> future = new FutureTask<>(() -> {
             try {
                 return executeOnSpecifiedWorker(taskPrediction.worker, taskPrediction,
-                        cGroupBuilder.buildCGroup(taskPrediction.resources));
+                        cGroupBuilder.buildCGroup(taskPrediction.resources), executionTimes);
             } finally {
                 startWaitingAfter(taskPrediction);
             }
@@ -119,7 +122,7 @@ public class LoadBalancer implements AutoCloseable {
             waiting.get(taskPrediction.startAfter).add(future);
         }
 
-        return new ScheduledFuture<>(future, taskPrediction);
+        return new ScheduledFuture<>(future, taskPrediction, executionTimes);
     }
 
     private synchronized void startWaitingAfter(TaskPrediction<?> taskPrediction) {
@@ -150,7 +153,7 @@ public class LoadBalancer implements AutoCloseable {
     }
 
     private <T> T executeOnSpecifiedWorker(InetSocketAddress chosenAddress, TaskPrediction<T> taskPrediction,
-                                           CGroup cGroup) throws IOException {
+                                           CGroup cGroup, ExecutionTimes executionTimes) throws IOException {
 
         RemoteCallable<T> callable = taskPrediction.task;
         if (cGroup != null) {
@@ -167,6 +170,8 @@ public class LoadBalancer implements AutoCloseable {
 
             // Execution started
             this.scheduler.started(taskPrediction);
+            executionTimes.started();
+
 
             @SuppressWarnings("unchecked")
             T result = (T) kryo.readClassAndObject(in);
@@ -177,6 +182,7 @@ public class LoadBalancer implements AutoCloseable {
         } finally {
             // Execution finished (successfully or with an exception)
             this.scheduler.finished(taskPrediction);
+            executionTimes.finished();
         }
     }
 

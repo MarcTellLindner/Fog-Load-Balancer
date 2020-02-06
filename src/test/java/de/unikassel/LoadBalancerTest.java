@@ -16,7 +16,9 @@ import de.unikassel.schedule.SimpleScheduler;
 import de.unikassel.schedule.data.ScheduledFuture;
 import de.unikassel.schedule.data.WorkerResources;
 import de.unikassel.util.serialization.RemoteCallable;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 import test.util.complex.encrypt.AES;
 import test.util.complex.sort.BubbleSort;
 import test.util.complex.wait.WaitWithMemory;
@@ -29,6 +31,7 @@ import java.util.concurrent.ExecutionException;
 import static de.unikassel.WorkerNode.DEFAULT_MONITORING_PORT;
 import static de.unikassel.WorkerNode.DEFAULT_RPC_PORT;
 
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class LoadBalancerTest {
 
     private Random random = new Random();
@@ -47,7 +50,8 @@ public class LoadBalancerTest {
                 ints,
                 longs,
                 1_000,
-                10, 50, 250, 1_000
+                new int[]{1_000, 1_000, 1_000, 1_000},
+                new int[]{1, 10, 100, 1_000}
         );
     }
 
@@ -64,12 +68,13 @@ public class LoadBalancerTest {
                 generator,
                 ints,
                 longs,
-                1_000,
-                10, 50, 250, 1_000
+                1_00,
+                new int[]{1_000, 1_000, 1_000, 1_000},
+                new int[]{1, 10, 100, 1_000}
         );
     }
 
-    @Test
+//    @Test
     public void waitWithMemoryTest() throws IOException, InterruptedException {
         System.out.println("Wait with memory test");
 
@@ -82,8 +87,9 @@ public class LoadBalancerTest {
                 generator,
                 ints,
                 longs,
-                1_000,
-                10, 50, 250, 1_000
+                1_00,
+                new int[]{1_000, 1_000, 1_000, 1_000},
+                new int[]{1, 10, 100, 1_000}
         );
     }
 
@@ -93,7 +99,11 @@ public class LoadBalancerTest {
     }
 
     private <T> void test(TaskGenerator<T> generator, PrimitiveIterator.OfInt ints, PrimitiveIterator.OfLong longs,
-                          int nTraining, int... nEvaluations) throws IOException, InterruptedException {
+                          int nTraining, int[] nEvaluations, int[] waits) throws IOException, InterruptedException {
+
+        if (nEvaluations.length != waits.length) {
+            throw new IllegalStateException("nEvaluation and waits must have the same length");
+        }
 
         RemoteCallable<?>[] trainingCalls = new RemoteCallable<?>[nTraining];
         double[][] trainingValues = new double[nTraining][];
@@ -119,8 +129,10 @@ public class LoadBalancerTest {
                 Arrays.toString(trainer.getTaskSizeToResourceFormula()));
 
 
-        for (int nEvaluation : nEvaluations) {
-            System.out.printf("n = %d%n", nEvaluation);
+        for (int i = 0; i < nEvaluations.length; i++) {
+            int nEvaluation = nEvaluations[i];
+            int wait = waits[i];
+            System.out.printf("n = %d | delta_t = %d%n", nEvaluation, wait);
             for (Scheduler scheduler : new Scheduler[]{basicScheduler, smartScheduler}) {
                 int exceptions = 0;
                 try (
@@ -135,20 +147,22 @@ public class LoadBalancerTest {
                     List<ScheduledFuture<T>> futures = new ArrayList<>();
 
                     long tStart = System.currentTimeMillis();
-                    for (int i = 0; i < nEvaluation; ++i) {
+                    for (int j = 0; j < nEvaluation; ++j) {
                         final int intVal = ints.nextInt();
                         final long longVal = longs.nextLong();
 
                         try {
-                            futures.add(loadBalancer.executeOnWorker(
-                                    generator.generate(intVal, longVal), intVal, longVal)
+                            ScheduledFuture<T> f = loadBalancer.executeOnWorker(
+                                    generator.generate(intVal, longVal), intVal, longVal
                             );
+                            futures.add(f);
                         } catch (IOException e) {
                             ++exceptions;
                         }
 
-                        Thread.sleep(10);
+                        Thread.sleep(wait);
                     }
+
                     for (ScheduledFuture<T> future : futures) {
                         try {
                             future.get();
@@ -162,6 +176,12 @@ public class LoadBalancerTest {
                             (System.currentTimeMillis() - tStart) / 1_000.,
                             exceptions == 0 ? "" : String.format(" (%d exceptions)", exceptions)
                     );
+
+                    double avgRetentionTime
+                            = futures.stream().mapToLong(sf -> sf.getExecutionTimes().retention())
+                            .average().orElse(-1);
+                    System.out.printf("\t Average retention time: %.5f seconds%n", avgRetentionTime
+                            / 1_000_000_000);
                 }
             }
             System.out.println();
