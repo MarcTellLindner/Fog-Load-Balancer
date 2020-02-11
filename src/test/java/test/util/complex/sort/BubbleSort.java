@@ -4,13 +4,13 @@ import test.util.complex.SomethingComplex;
 
 import java.util.stream.LongStream;
 
-public class BubbleSort implements SomethingComplex<long[]> {
+public class BubbleSort implements SomethingComplex {
 
     @Override
-    public long[] doSomethingComplex(int intVal, long longVal) {
+    public boolean doSomethingComplex(int intVal, long longVal) {
         long[] values = LongStream.generate(() -> (long) (Math.random() * longVal)).limit(intVal).toArray();
         sort(values);
-        return values;
+        return true;
     }
 
     private void sort(long[] values) {

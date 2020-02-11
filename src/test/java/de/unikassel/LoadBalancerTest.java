@@ -40,10 +40,48 @@ public class LoadBalancerTest {
     public void sortingTest() throws IOException, InterruptedException {
         System.out.println("Sorting test");
 
-        TaskGenerator<long[]> generator = (i, l) -> (() -> new BubbleSort().doSomethingComplex(i, l));
+        TaskGenerator generator = (i, l) -> (() -> new BubbleSort().doSomethingComplex(i, l));
 
-        PrimitiveIterator.OfInt ints = random.ints(10_000, 25_000).iterator();
-        PrimitiveIterator.OfLong longs = random.longs(0, 100).iterator();
+        PrimitiveIterator.OfInt ints = random.ints(1_000, 50_000).iterator();
+        PrimitiveIterator.OfLong longs = random.longs(0, Long.MAX_VALUE).iterator();
+
+        test(
+                generator,
+                ints,
+                longs,
+                1_000,
+                new int[]{1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000},
+                new int[]{100, 200, 300, 400, 500, 750, 1_000, 2_000}
+        );
+    }
+
+    @Test
+    public void encryptionTest() throws IOException, InterruptedException {
+        System.out.println("Encryption test");
+
+        TaskGenerator generator = (i, l) -> (() -> new AES().doSomethingComplex(i, l));
+
+        PrimitiveIterator.OfInt ints = random.ints(10, 5_000).iterator();
+        PrimitiveIterator.OfLong longs = random.longs(1_000, 1_000_000).iterator();
+
+        test(
+                generator,
+                ints,
+                longs,
+                1_000,
+                new int[]{1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000},
+                new int[]{100, 200, 300, 400, 500, 750, 1_000, 2_000}
+        );
+    }
+
+    //    @Test
+    public void waitWithMemoryTest() throws IOException, InterruptedException {
+        System.out.println("Wait with memory test");
+
+        TaskGenerator generator = (i, l) -> (() -> new WaitWithMemory().doSomethingComplex(i, l));
+
+        PrimitiveIterator.OfInt ints = random.ints(1, 2_500).iterator();
+        PrimitiveIterator.OfLong longs = random.longs(0, 1).iterator(); // Is ignored
 
         test(
                 generator,
@@ -55,51 +93,13 @@ public class LoadBalancerTest {
         );
     }
 
-    @Test
-    public void encryptionTest() throws IOException, InterruptedException {
-        System.out.println("Encryption test");
-
-        TaskGenerator<byte[]> generator = (i, l) -> (() -> new AES().doSomethingComplex(i, l));
-
-        PrimitiveIterator.OfInt ints = random.ints(10, 1_000).iterator();
-        PrimitiveIterator.OfLong longs = random.longs(1_000, 1_000_000).iterator();
-
-        test(
-                generator,
-                ints,
-                longs,
-                1_00,
-                new int[]{1_000, 1_000, 1_000, 1_000},
-                new int[]{1, 10, 100, 1_000}
-        );
-    }
-
-//    @Test
-    public void waitWithMemoryTest() throws IOException, InterruptedException {
-        System.out.println("Wait with memory test");
-
-        TaskGenerator<Long> generator = (i, l) -> (() -> new WaitWithMemory().doSomethingComplex(i, l));
-
-        PrimitiveIterator.OfInt ints = random.ints(1, 2_500).iterator();
-        PrimitiveIterator.OfLong longs = random.longs(0, 1).iterator(); // Is ignored
-
-        test(
-                generator,
-                ints,
-                longs,
-                1_00,
-                new int[]{1_000, 1_000, 1_000, 1_000},
-                new int[]{1, 10, 100, 1_000}
-        );
-    }
-
     @FunctionalInterface
-    private interface TaskGenerator<T> {
-        RemoteCallable<T> generate(int val1, long val2);
+    private interface TaskGenerator {
+        RemoteCallable<Boolean> generate(int val1, long val2);
     }
 
-    private <T> void test(TaskGenerator<T> generator, PrimitiveIterator.OfInt ints, PrimitiveIterator.OfLong longs,
-                          int nTraining, int[] nEvaluations, int[] waits) throws IOException, InterruptedException {
+    private void test(TaskGenerator generator, PrimitiveIterator.OfInt ints, PrimitiveIterator.OfLong longs,
+                      int nTraining, int[] nEvaluations, int[] waits) throws IOException, InterruptedException {
 
         if (nEvaluations.length != waits.length) {
             throw new IllegalStateException("nEvaluation and waits must have the same length");
@@ -144,7 +144,7 @@ public class LoadBalancerTest {
                             new InetSocketAddress(System.getenv("worker"), DEFAULT_RPC_PORT),
                             System.getenv("password"));
 
-                    List<ScheduledFuture<T>> futures = new ArrayList<>();
+                    List<ScheduledFuture<Boolean>> futures = new ArrayList<>();
 
                     long tStart = System.currentTimeMillis();
                     for (int j = 0; j < nEvaluation; ++j) {
@@ -152,7 +152,7 @@ public class LoadBalancerTest {
                         final long longVal = longs.nextLong();
 
                         try {
-                            ScheduledFuture<T> f = loadBalancer.executeOnWorker(
+                            ScheduledFuture<Boolean> f = loadBalancer.executeOnWorker(
                                     generator.generate(intVal, longVal), intVal, longVal
                             );
                             futures.add(f);
@@ -163,7 +163,7 @@ public class LoadBalancerTest {
                         Thread.sleep(wait);
                     }
 
-                    for (ScheduledFuture<T> future : futures) {
+                    for (ScheduledFuture<Boolean> future : futures) {
                         try {
                             future.get();
                         } catch (InterruptedException | ExecutionException e) {

@@ -12,10 +12,10 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Random;
 
-public class AES implements SomethingComplex<byte[]> {
+public class AES implements SomethingComplex {
 
     @Override
-    public byte[] doSomethingComplex(int intVal, long longVal) {
+    public boolean doSomethingComplex(int intVal, long longVal) {
         try {
             if(longVal > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("longVal was too big");
@@ -32,11 +32,10 @@ public class AES implements SomethingComplex<byte[]> {
             for(int i = 0; i < intVal; ++i) {
                 rand = cipher.doFinal(rand);
             }
-
-            return rand;
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            return false;
         }
+        return true;
     }
 
     private SecretKeySpec generateKey() throws NoSuchAlgorithmException {
