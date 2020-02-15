@@ -36,13 +36,13 @@ public class LoadBalancerTest {
 
     private Random random = new Random();
 
-    @Test
+    //    @Test
     public void sortingTest() throws IOException, InterruptedException {
         System.out.println("Sorting test");
 
         TaskGenerator generator = (i, l) -> (() -> new BubbleSort().doSomethingComplex(i, l));
 
-        PrimitiveIterator.OfInt ints = random.ints(1_000, 50_000).iterator();
+        PrimitiveIterator.OfInt ints = random.ints(1_000, 2_500).iterator();
         PrimitiveIterator.OfLong longs = random.longs(0, Long.MAX_VALUE).iterator();
 
         test(
@@ -51,17 +51,17 @@ public class LoadBalancerTest {
                 longs,
                 1_000,
                 new int[]{1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000},
-                new int[]{100, 200, 300, 400, 500, 750, 1_000, 2_000}
+                new int[]{1_000 / 3, 1_000 / 6, 1_000 / 9, 1_000 / 12, 1_000 / 15, 1_000 / 18, 1_000 / 21, 1_000 / 24}
         );
     }
 
-    @Test
+//    @Test
     public void encryptionTest() throws IOException, InterruptedException {
         System.out.println("Encryption test");
 
         TaskGenerator generator = (i, l) -> (() -> new AES().doSomethingComplex(i, l));
 
-        PrimitiveIterator.OfInt ints = random.ints(10, 5_000).iterator();
+        PrimitiveIterator.OfInt ints = random.ints(10, 1_000).iterator();
         PrimitiveIterator.OfLong longs = random.longs(1_000, 1_000_000).iterator();
 
         test(
@@ -70,17 +70,20 @@ public class LoadBalancerTest {
                 longs,
                 1_000,
                 new int[]{1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000},
-                new int[]{100, 200, 300, 400, 500, 750, 1_000, 2_000}
+                new int[]{
+                        (int) (1_000 / 1.0), (int) (1_000 / 1.5), (int) (1_000 / 2.0), (int) (1_000 / 2.5),
+                        (int) (1_000 / 3.0), (int) (1_000 / 3.5), (int) (1_000 / 4.0), (int) (1_000 / 4.5)
+                }
         );
     }
 
-    //    @Test
+    @Test
     public void waitWithMemoryTest() throws IOException, InterruptedException {
         System.out.println("Wait with memory test");
 
         TaskGenerator generator = (i, l) -> (() -> new WaitWithMemory().doSomethingComplex(i, l));
 
-        PrimitiveIterator.OfInt ints = random.ints(1, 2_500).iterator();
+        PrimitiveIterator.OfInt ints = random.ints(1, 1_000).iterator();
         PrimitiveIterator.OfLong longs = random.longs(0, 1).iterator(); // Is ignored
 
         test(
@@ -88,8 +91,11 @@ public class LoadBalancerTest {
                 ints,
                 longs,
                 1_000,
-                new int[]{1_000, 1_000, 1_000, 1_000},
-                new int[]{1, 10, 100, 1_000}
+                new int[]{1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000},
+                new int[]{
+                        (int) (1_000 / 1.0), (int) (1_000 / 1.5), (int) (1_000 / 2.0), (int) (1_000 / 2.5),
+                        (int) (1_000 / 3.0), (int) (1_000 / 3.5), (int) (1_000 / 4.0), (int) (1_000 / 4.5)
+                }
         );
     }
 
@@ -205,7 +211,7 @@ public class LoadBalancerTest {
                         = Collections.singletonList(MetricsGetter.getMetrics(
                         new InetSocketAddress(worker.getAddress(), DEFAULT_MONITORING_PORT)));
                 MetricsParser parser = new MetricsParser();
-                // 1. - used
+                // 1.0 - used
                 double cpuFree = parser.getMax(MetricType.PROCESS_CPU_USAGE, metrics, true)
                         .map(m -> 1. - m.value).orElseThrow(IOException::new);
 
@@ -227,7 +233,6 @@ public class LoadBalancerTest {
 
     private CGroupBuilder createCGroupBuilder() {
         return predictions -> {
-//            System.out.println("Predictions: " + Arrays.toString(predictions));
             return new CGroup(String.format("CG%d", Arrays.hashCode(predictions)), Controller.CPU, Controller.MEMORY)
                     .withOption(Cpu.SHARES, (int) (predictions[0] * 1024))
                     .withOption(Memory.LIMIT_IN_BYTES, (int) (predictions[1]));

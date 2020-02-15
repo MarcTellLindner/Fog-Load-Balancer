@@ -6,11 +6,11 @@ public class WaitWithMemory implements SomethingComplex {
 
     @Override
     public boolean doSomethingComplex(int intVal, long longVal) {
-        long[] memory = new long[intVal * (1_000_000 / 8)]; // Divide by 8 to 'make it' bytes
         try {
+            long[] memory = new long[intVal * (1_000_000 / 8)]; // Divide by 8 to 'make it' bytes
             Thread.sleep(intVal);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        } catch (OutOfMemoryError | InterruptedException e) {
+            return false;
         }
         return true;
     }
