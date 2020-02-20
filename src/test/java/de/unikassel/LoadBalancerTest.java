@@ -36,7 +36,7 @@ public class LoadBalancerTest {
 
     private Random random = new Random();
 
-    //    @Test
+    @Test
     public void sortingTest() throws IOException, InterruptedException {
         System.out.println("Sorting test");
 
@@ -50,12 +50,14 @@ public class LoadBalancerTest {
                 ints,
                 longs,
                 1_000,
-                new int[]{1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000},
-                new int[]{1_000 / 3, 1_000 / 6, 1_000 / 9, 1_000 / 12, 1_000 / 15, 1_000 / 18, 1_000 / 21, 1_000 / 24}
+                new int[]{1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000},
+                new int[]{1_000, 1_000 / 2, 1_000 / 3, (int) (1_000 / 4.5),
+                        1_000 / 6, 1_000 / 9, 1_000 / 12, 1_000 / 15,
+                        1_000 / 18, 1_000 / 21, 1_000 / 24, 1_000 / 27}
         );
     }
 
-//    @Test
+    @Test
     public void encryptionTest() throws IOException, InterruptedException {
         System.out.println("Encryption test");
 
@@ -69,10 +71,11 @@ public class LoadBalancerTest {
                 ints,
                 longs,
                 1_000,
-                new int[]{1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000},
+                new int[]{1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000},
                 new int[]{
-                        (int) (1_000 / 1.0), (int) (1_000 / 1.5), (int) (1_000 / 2.0), (int) (1_000 / 2.5),
-                        (int) (1_000 / 3.0), (int) (1_000 / 3.5), (int) (1_000 / 4.0), (int) (1_000 / 4.5)
+                        (int) (1_000 / 0.25), (int) (1_000 / 0.5), (int) (1_000 / 1.), (int) (1_000 / 1.5),
+                        (int) (1_000 / 3.0), (int) (1_000 / 4.5), (int) (1_000 / 6.0), (int) (1_000 / 7.5),
+                        (int) (1_000 / 9.0), (int) (1_000 / 10.5), (int) (1_000 / 12.0), (int) (1_000 / 13.5)
                 }
         );
     }
@@ -91,10 +94,11 @@ public class LoadBalancerTest {
                 ints,
                 longs,
                 1_000,
-                new int[]{1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000},
+                new int[]{1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000},
                 new int[]{
-                        (int) (1_000 / 1.0), (int) (1_000 / 1.5), (int) (1_000 / 2.0), (int) (1_000 / 2.5),
-                        (int) (1_000 / 3.0), (int) (1_000 / 3.5), (int) (1_000 / 4.0), (int) (1_000 / 4.5)
+                        (int) (1_000 / 0.25), (int) (1_000 / 0.5), (int) (1_000 / 1.), (int) (1_000 / 1.5),
+                        (int) (1_000 / 3.0), (int) (1_000 / 4.5), (int) (1_000 / 6.0), (int) (1_000 / 7.5),
+                        (int) (1_000 / 9.0), (int) (1_000 / 10.5), (int) (1_000 / 12.0), (int) (1_000 / 13.5)
                 }
         );
     }
@@ -186,8 +190,22 @@ public class LoadBalancerTest {
                     double avgRetentionTime
                             = futures.stream().mapToLong(sf -> sf.getExecutionTimes().retention())
                             .average().orElse(-1);
-                    System.out.printf("\t Average retention time: %.5f seconds%n", avgRetentionTime
-                            / 1_000_000_000);
+
+                    double avgWaitingTime
+                            = futures.stream().mapToLong(sf -> sf.getExecutionTimes().waited())
+                            .average().orElse(-1);
+
+                    double avgProcessingTime
+                            = futures.stream().mapToLong(sf -> sf.getExecutionTimes().processed())
+                            .average().orElse(-1);
+
+                    System.out.printf(
+                            "\t Average retention time: %.5f ms" +
+                                    "\t Average waiting time: %.5f ms" +
+                                    "\t Average processing time: %.5f ms%n",
+                            avgRetentionTime / 1_000_000,
+                            avgWaitingTime / 1_000_000,
+                            avgProcessingTime / 1_000_000);
                 }
             }
             System.out.println();
