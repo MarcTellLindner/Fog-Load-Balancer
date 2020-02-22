@@ -154,8 +154,8 @@ public class LoadBalancerTest {
                 ) {
                     for (int j = 0; j < workers.length; ++j) {
                         loadBalancer.addWorkerNodeAddress(
-                                new InetSocketAddress(workers[i], DEFAULT_RPC_PORT),
-                                passwords[i]
+                                new InetSocketAddress(workers[j], DEFAULT_RPC_PORT),
+                                passwords[j]
                         );
                     }
 
