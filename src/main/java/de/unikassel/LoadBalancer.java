@@ -38,7 +38,7 @@ public class LoadBalancer implements AutoCloseable {
      * Create a new {@link LoadBalancer} without predictors.
      */
     public LoadBalancer() {
-        this(new SimpleScheduler(), x -> new double[1], x -> new double[1], x -> null);
+        this(new SimpleScheduler(), x -> null, x -> null, x -> null);
     }
 
     /**
@@ -136,7 +136,7 @@ public class LoadBalancer implements AutoCloseable {
         double[] score = this.inputToTaskSizePredictor.predict(input);
         double[] timeAndResources = this.taskSizeToResourcesPredictor.predict(score);
 
-        if (Arrays.stream(timeAndResources).anyMatch(d -> d < 0)) {
+        if (timeAndResources != null && Arrays.stream(timeAndResources).anyMatch(d -> d < 0)) {
             System.err.printf("Task %d had a negative time or resource prediction -> setting value to 0%n",
                     callable.hashCode());
             for (int i = 0; i < timeAndResources.length; ++i) {
@@ -146,8 +146,15 @@ public class LoadBalancer implements AutoCloseable {
             }
         }
 
-        double timePrediction = timeAndResources[0];
-        double[] resourcePrediction = Arrays.copyOfRange(timeAndResources, 1, timeAndResources.length);
+        double timePrediction;
+        double[] resourcePrediction;
+        if (timeAndResources != null) {
+            timePrediction = timeAndResources[0];
+            resourcePrediction = Arrays.copyOfRange(timeAndResources, 1, timeAndResources.length);
+        } else {
+            timePrediction = -1;
+            resourcePrediction = null;
+        }
 
         return this.scheduler.schedule(callable, timePrediction, resourcePrediction, this.workerNodeAddresses.keySet());
     }

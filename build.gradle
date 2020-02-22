@@ -7,7 +7,7 @@ version '1.0-SNAPSHOT'
 
 sourceCompatibility = 1.8
 tasks.withType(Test) {
-    jvmArgs = ['-Xms2G', '-Xmx6G']
+    jvmArgs = ['-Xms1G', '-Xmx4G']
 }
 
 repositories {

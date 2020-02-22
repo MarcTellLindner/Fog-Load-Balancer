@@ -35,6 +35,8 @@ import static de.unikassel.WorkerNode.DEFAULT_RPC_PORT;
 public class LoadBalancerTest {
 
     private Random random = new Random();
+    private String[] workers = System.getenv("workers").split(" ");
+    private String[] passwords = System.getenv("passwords").split(" ");
 
     @Test
     public void sortingTest() throws IOException, InterruptedException {
@@ -139,7 +141,7 @@ public class LoadBalancerTest {
                 Arrays.toString(trainer.getTaskSizeToResourceFormula()));
 
 
-        for (int i = 0; i < nEvaluations.length; i++) {
+        for (int i = 0; i < nEvaluations.length; ++i) {
             int nEvaluation = nEvaluations[i];
             int wait = waits[i];
             System.out.printf("n = %d | delta_t = %d%n", nEvaluation, wait);
@@ -150,9 +152,12 @@ public class LoadBalancerTest {
                                 trainer.getInputToTaskSizePredictor(), trainer.getTaskSizeToResourcePredictor(),
                                 cGroupBuilder)
                 ) {
-                    loadBalancer.addWorkerNodeAddress(
-                            new InetSocketAddress(System.getenv("worker"), DEFAULT_RPC_PORT),
-                            System.getenv("password"));
+                    for (int j = 0; j < workers.length; ++j) {
+                        loadBalancer.addWorkerNodeAddress(
+                                new InetSocketAddress(workers[i], DEFAULT_RPC_PORT),
+                                passwords[i]
+                        );
+                    }
 
                     List<ScheduledFuture<Boolean>> futures = new ArrayList<>();
 
@@ -214,9 +219,9 @@ public class LoadBalancerTest {
 
     private Trainer createTrainer(RemoteCallable<?>[] trainingCalls, double[][] trainingValues) throws IOException {
         Trainer trainer = new Trainer(trainingCalls, trainingValues);
-        return trainer.measure(System.getenv("worker"),
+        return trainer.measure(workers[0],
                 DEFAULT_RPC_PORT, DEFAULT_MONITORING_PORT,
-                System.getenv(("password")),
+                passwords[0],
                 MetricType.PROCESS_CPU_USAGE,
                 MetricType.JVM_MEMORY_USED)
                 .train();

@@ -4,29 +4,58 @@ import de.unikassel.schedule.data.TaskPrediction;
 import de.unikassel.util.serialization.RemoteCallable;
 
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Set;
+import java.util.*;
 
 public class SimpleScheduler implements Scheduler {
 
-    ArrayList<TaskPrediction<?>> tasks = new ArrayList<>();
+    private final HashMap<InetSocketAddress, TaskPrediction<?>> lastTaskPerWorker;
+
+    public SimpleScheduler() {
+        lastTaskPerWorker = new HashMap<>();
+    }
 
     @Override
     public synchronized <T> TaskPrediction<T> schedule(RemoteCallable<T> task, double timePrediction,
                                                        double[] resourcePrediction, Set<InetSocketAddress> workers) {
-        TaskPrediction<?> lastTask = tasks.isEmpty() ? null : tasks.get(tasks.size() - 1);
-        long executeAfter = lastTask == null
-                ? Long.MIN_VALUE
-                : (long) (lastTask.time + lastTask.duration);
-        long startTime = Math.max(executeAfter, System.nanoTime());
-        TaskPrediction<T> taskPrediction = new TaskPrediction<>(task, startTime,
-                timePrediction, workers.iterator().next(), resourcePrediction, lastTask);
-        tasks.add(taskPrediction);
-        return taskPrediction;
+        InetSocketAddress worker = null;
+        double time = Double.MAX_VALUE;
+        TaskPrediction<?> startAfter = null;
+
+        if (timePrediction == -1) {
+            if (workers.size() != 1) {
+                throw new IllegalStateException("Cannot run without time prediction for more than one worker");
+            }
+            worker = workers.iterator().next();
+            time = System.nanoTime();
+            startAfter = lastTaskPerWorker.get(worker);
+        } else {
+
+            for (InetSocketAddress currentWorker : workers) {
+                if (!lastTaskPerWorker.containsKey(currentWorker)) {
+                    worker = currentWorker;
+                    time = System.nanoTime();
+                    break;
+                }
+            }
+
+            if (worker == null) {
+                for (InetSocketAddress currentWorker : workers) {
+                    TaskPrediction<?> workerLastTask = lastTaskPerWorker.get(currentWorker);
+                    double freeAt = workerLastTask.time + workerLastTask.duration;
+
+                    if (freeAt < time) {
+                        time = freeAt;
+                        worker = currentWorker;
+                        startAfter = workerLastTask;
+                    }
+                }
+            }
+        }
+        return new TaskPrediction<>(task, time, timePrediction, worker, resourcePrediction, startAfter);
     }
 
     @Override
-    public void finished(TaskPrediction<?> taskPrediction) {
-        tasks.remove(taskPrediction);
+    public synchronized void finished(TaskPrediction<?> taskPrediction) {
+        lastTaskPerWorker.remove(taskPrediction.worker, taskPrediction);
     }
 }
