@@ -51,7 +51,11 @@ public class SimpleScheduler implements Scheduler {
                 }
             }
         }
-        return new TaskPrediction<>(task, time, timePrediction, worker, resourcePrediction, startAfter);
+        TaskPrediction<T> taskPrediction = new TaskPrediction<>(
+                task, time, timePrediction, worker, resourcePrediction, startAfter
+        );
+        lastTaskPerWorker.put(worker, taskPrediction);
+        return taskPrediction;
     }
 
     @Override
